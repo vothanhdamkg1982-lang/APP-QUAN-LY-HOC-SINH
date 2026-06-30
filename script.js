@@ -657,8 +657,19 @@ function previewAvatar(input) {
     }
 }
 
-// Mở camera
+// ============================================================
+// SỬA LỖI CAMERA: LƯU THAM CHIẾU PREVIEW TRƯỚC KHI MỞ
+// ============================================================
+let avatarPreviewRef = null; // biến toàn cục lưu tham chiếu preview
+
 function openCamera() {
+    // Lưu tham chiếu đến preview avatar trước khi mở camera
+    avatarPreviewRef = document.getElementById('sfAvatarPreview');
+    if (!avatarPreviewRef) {
+        showToast('Không tìm thấy khung preview avatar. Vui lòng mở form thêm/sửa học sinh trước.', 'error');
+        return;
+    }
+
     const videoHTML = `
         <div style="text-align:center;">
             <video id="cameraVideo" autoplay playsinline style="width:100%; max-width:400px; border-radius:8px; background:#000;"></video>
@@ -677,7 +688,6 @@ function openCamera() {
                 .then(stream => {
                     video.srcObject = stream;
                     window.cameraStream = stream;
-                    // Đảm bảo video phát
                     video.play().catch(e => console.warn('Video play error:', e));
                 })
                 .catch(err => {
@@ -689,7 +699,6 @@ function openCamera() {
     }, 300);
 }
 
-// Chụp ảnh từ webcam
 function capturePhoto() {
     const video = document.getElementById('cameraVideo');
     const canvas = document.getElementById('cameraCanvas');
@@ -697,7 +706,6 @@ function capturePhoto() {
         showToast('Không tìm thấy camera.', 'error');
         return;
     }
-    // Đảm bảo video có dữ liệu
     if (video.readyState < 2) {
         showToast('Camera chưa sẵn sàng, vui lòng thử lại.', 'warning');
         return;
@@ -709,24 +717,29 @@ function capturePhoto() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     
-    // Cập nhật preview avatar NGAY LẬP TỨC
-    const preview = document.getElementById('sfAvatarPreview');
-    if (preview) {
-        preview.src = dataUrl;
+    // Cập nhật preview avatar (dùng tham chiếu đã lưu)
+    if (avatarPreviewRef) {
+        avatarPreviewRef.src = dataUrl;
+        showToast('Đã chụp ảnh!', 'success');
+    } else {
+        // Fallback: thử tìm lại
+        const fallback = document.getElementById('sfAvatarPreview');
+        if (fallback) {
+            fallback.src = dataUrl;
+            avatarPreviewRef = fallback;
+            showToast('Đã chụp ảnh!', 'success');
+        } else {
+            showToast('Không tìm thấy preview avatar. Vui lòng thử lại sau khi mở form.', 'error');
+        }
     }
     
     // Đóng modal camera
     closeCamera();
-    showToast('Đã chụp ảnh!', 'success');
     
-    // Resize ảnh để giảm dung lượng (chạy ngầm)
+    // Resize ảnh (chạy ngầm)
     resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
-        if (preview) {
-            preview.src = resizedUrl;
-        }
-    }).catch(err => {
-        console.warn('Resize ảnh thất bại, giữ ảnh gốc.', err);
-    });
+        if (avatarPreviewRef) avatarPreviewRef.src = resizedUrl;
+    }).catch(err => console.warn('Resize lỗi:', err));
 }
 
 function closeCamera() {
@@ -748,7 +761,7 @@ function closeCamera() {
 
 function clearAvatar() {
     const preview = document.getElementById('sfAvatarPreview');
-    preview.src = DEFAULT_AVATAR;
+    if (preview) preview.src = DEFAULT_AVATAR;
     const input = document.getElementById('sfAvatarInput');
     if (input) input.value = '';
 }
