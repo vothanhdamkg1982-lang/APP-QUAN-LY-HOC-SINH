@@ -9,6 +9,11 @@
  */
 
 // ============================================================
+// 0. AVATAR MẶC ĐỊNH (BASE64) - TRÁNH 404
+// ============================================================
+const DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlNWU3ZWIiIHJ4PSI1MCUiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjM4IiByPSIyNCIgZmlsbD0iIzhjOTU5YyIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNzUiIHI9IjI4IiBmaWxsPSIjOGM5NTljIi8+PC9zdmc+';
+
+// ============================================================
 // 1. STATE & DỮ LIỆU MẪU
 // ============================================================
 const APP_STATE = {
@@ -81,7 +86,7 @@ function generateSampleStudents() {
             enrollmentDate: new Date(2024, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28)).toISOString().split('T')[0],
             status: status,
             note: '',
-            avatar: 'images/avatar-default.png'
+            avatar: DEFAULT_AVATAR
         });
     }
     return students;
@@ -96,7 +101,15 @@ function initData() {
         students = generateSampleStudents();
         localStorage.setItem('students', JSON.stringify(students));
     }
+    // Đảm bảo tất cả học sinh đều có avatar hợp lệ
+    students = students.map(s => {
+        if (!s.avatar || s.avatar === 'images/avatar-default.png') {
+            s.avatar = DEFAULT_AVATAR;
+        }
+        return s;
+    });
     APP_STATE.students = students;
+    localStorage.setItem('students', JSON.stringify(students));
 
     let classes = JSON.parse(localStorage.getItem('classes'));
     if (!classes) {
@@ -425,7 +438,7 @@ function initCharts() {
 }
 
 // ============================================================
-// 6. QUẢN LÝ HỌC SINH (CRUD + IMPORT/EXCEL)
+// 6. QUẢN LÝ HỌC SINH (CRUD + IMPORT/EXCEL + AVATAR)
 // ============================================================
 let studentPage = 1;
 const STUDENT_PAGE_SIZE = 10;
@@ -512,10 +525,11 @@ function initStudentTable() {
     tbody.innerHTML = pageData.map((s, idx) => {
         const stt = start + idx + 1;
         const checked = APP_STATE.selectedStudents.includes(s.id) ? 'checked' : '';
+        const avatarSrc = (s.avatar && s.avatar.startsWith('data:image')) ? s.avatar : DEFAULT_AVATAR;
         return `<tr>
             <td><input type="checkbox" class="student-check" data-id="${s.id}" ${checked} onchange="toggleStudent('${s.id}')"></td>
             <td>${stt}</td>
-            <td><img src="${s.avatar || 'images/avatar-default.png'}" class="avatar-sm" alt="avatar"></td>
+            <td><img src="${avatarSrc}" class="avatar-sm" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;"></td>
             <td><strong>${s.id}</strong></td>
             <td>${s.fullName}</td>
             <td>${formatDate(s.dob)}</td>
@@ -544,8 +558,8 @@ function initStudentTable() {
     }
     document.querySelectorAll('#studentTable thead th[data-sort]').forEach(th => {
         th.style.cursor = 'pointer';
-        th.onclick = () => {
-            const field = th.dataset.sort;
+        th.onclick = function() {
+            const field = this.dataset.sort;
             if (studentSort.field === field) {
                 studentSort.order = studentSort.order === 'asc' ? 'desc' : 'asc';
             } else {
@@ -595,82 +609,162 @@ function toggleSelectAll() {
     initStudentTable();
 }
 
-function openAddStudent() {
-    showModal('Thêm học sinh', getStudentFormHTML(), 'Thêm', 'Hủy').then(confirmed => {
-        if (confirmed) {
-            const data = getStudentFormData();
-            if (!data.fullName || !data.dob) {
-                showToast('Vui lòng điền đầy đủ thông tin!', 'error');
-                return;
+// ============================================================
+// 7. CÁC HÀM XỬ LÝ AVATAR VÀ THÊM/SỬA HỌC SINH
+// ============================================================
+
+// Resize ảnh
+function resizeImage(dataUrl, maxWidth = 200, maxHeight = 200, quality = 0.7) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = function() {
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+                if (width > maxWidth) {
+                    height = Math.round(height * maxWidth / width);
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width = Math.round(width * maxHeight / height);
+                    height = maxHeight;
+                }
             }
-            data.id = `HS${String(10000 + APP_STATE.students.length + 1).padStart(5, '0')}`;
-            data.avatar = 'images/avatar-default.png';
-            data.avgScore = 0;
-            APP_STATE.students.push(data);
-            localStorage.setItem('students', JSON.stringify(APP_STATE.students));
-            updateClassCounts();
-            showToast('Thêm học sinh thành công!');
-            renderPage('students');
-        }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+            resolve(resizedDataUrl);
+        };
+        img.src = dataUrl;
     });
 }
 
-function editStudent(id) {
-    const student = APP_STATE.students.find(s => s.id === id);
-    if (!student) return;
-    showModal('Sửa học sinh', getStudentFormHTML(student), 'Cập nhật', 'Hủy').then(confirmed => {
-        if (confirmed) {
-            const data = getStudentFormData();
-            if (!data.fullName || !data.dob) {
-                showToast('Vui lòng điền đầy đủ thông tin!', 'error');
-                return;
-            }
-            Object.assign(student, data);
-            localStorage.setItem('students', JSON.stringify(APP_STATE.students));
-            updateClassCounts();
-            showToast('Cập nhật thành công!');
-            renderPage('students');
-        }
-    });
+// Preview avatar khi tải ảnh từ máy tính
+function previewAvatar(input) {
+    const preview = document.getElementById('sfAvatarPreview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const dataUrl = e.target.result;
+            // Hiển thị ảnh gốc trước
+            preview.src = dataUrl;
+            // Resize ngầm để tối ưu dung lượng
+            resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
+                preview.src = resizedUrl;
+            }).catch(() => {});
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
 }
 
-function viewStudent(id) {
-    const s = APP_STATE.students.find(st => st.id === id);
-    if (!s) return;
-    const html = `
-        <div class="profile-header">
-            <img src="${s.avatar || 'images/avatar-default.png'}" class="profile-avatar">
-            <div class="profile-info">
-                <h2>${s.fullName}</h2>
-                <p><strong>Mã HS:</strong> ${s.id} | <strong>Lớp:</strong> ${s.class} | <strong>Khối:</strong> ${s.grade}</p>
-                <p>${getStatusBadge(s.status)} ${getAcademicBadge(s.academic)}</p>
+// Mở camera để chụp ảnh
+function openCamera() {
+    const videoHTML = `
+        <div style="text-align:center;">
+            <video id="cameraVideo" autoplay playsinline style="width:100%; max-width:400px; border-radius:8px; background:#000;"></video>
+            <div style="margin-top:0.5rem; display:flex; gap:0.5rem; justify-content:center;">
+                <button class="btn btn-primary" onclick="capturePhoto()"><i class="fas fa-camera"></i> Chụp</button>
+                <button class="btn btn-secondary" onclick="closeCamera()">Đóng</button>
             </div>
-        </div>
-        <div class="form-grid">
-            <div><label>Ngày sinh</label><p><strong>${formatDate(s.dob)}</strong></p></div>
-            <div><label>Giới tính</label><p><strong>${s.gender}</strong></p></div>
-            <div><label>Địa chỉ</label><p><strong>${s.address || ''}</strong></p></div>
-            <div><label>SĐT</label><p><strong>${s.phone || ''}</strong></p></div>
-            <div><label>Email</label><p><strong>${s.email || ''}</strong></p></div>
-            <div><label>Hạnh kiểm</label><p><strong>${s.conduct || ''}</strong></p></div>
-            <div><label>Điểm TB</label><p><strong>${s.avgScore || 0}</strong></p></div>
-            <div><label>Ngày nhập học</label><p><strong>${formatDate(s.enrollmentDate)}</strong></p></div>
-            <div><label>Tên cha</label><p><strong>${s.fatherName || ''}</strong></p></div>
-            <div><label>Tên mẹ</label><p><strong>${s.motherName || ''}</strong></p></div>
-            <div><label>SĐT phụ huynh</label><p><strong>${s.parentPhone || ''}</strong></p></div>
-            <div><label>Ghi chú</label><p><strong>${s.note || ''}</strong></p></div>
-        </div>
-        <div class="flex gap-2 mt-2">
-            <button class="btn btn-primary btn-sm" onclick="printStudent('${s.id}')"><i class="fas fa-print"></i> In hồ sơ</button>
+            <canvas id="cameraCanvas" style="display:none;"></canvas>
         </div>
     `;
-    showModal('Hồ sơ học sinh', html, 'Đóng', '');
+    showModal('Chụp ảnh từ webcam', videoHTML, '', '').then(() => {});
+    setTimeout(() => {
+        const video = document.getElementById('cameraVideo');
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    window.cameraStream = stream;
+                })
+                .catch(err => {
+                    showToast('Không thể truy cập webcam: ' + err.message, 'error');
+                });
+        } else {
+            showToast('Trình duyệt không hỗ trợ webcam.', 'error');
+        }
+    }, 300);
 }
 
-function getStudentFormHTML(student = null) {
+// Chụp ảnh từ webcam
+function capturePhoto() {
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    if (!video || !canvas) {
+        showToast('Không tìm thấy camera.', 'error');
+        return;
+    }
+    // Chụp ảnh từ video
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Cập nhật preview avatar NGAY LẬP TỨC
+    const preview = document.getElementById('sfAvatarPreview');
+    if (preview) {
+        preview.src = dataUrl; // Hiển thị ảnh gốc trước
+    }
+    
+    // Đóng modal camera
+    closeCamera();
+    showToast('Đã chụp ảnh!', 'success');
+    
+    // Resize ảnh để giảm dung lượng (chạy ngầm, không ảnh hưởng trải nghiệm)
+    resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
+        if (preview) {
+            preview.src = resizedUrl; // Cập nhật ảnh đã nén
+        }
+    }).catch(() => {});
+}
+
+// Đóng camera
+function closeCamera() {
+    if (window.cameraStream) {
+        window.cameraStream.getTracks().forEach(track => track.stop());
+        window.cameraStream = null;
+    }
+    const video = document.getElementById('cameraVideo');
+    if (video) video.srcObject = null;
+    const modalContainer = document.getElementById('modalContainer');
+    if (modalContainer && !modalContainer.classList.contains('hidden')) {
+        modalContainer.classList.add('hidden');
+    }
+}
+
+// Xóa ảnh avatar
+function clearAvatar() {
+    const preview = document.getElementById('sfAvatarPreview');
+    preview.src = DEFAULT_AVATAR;
+    const input = document.getElementById('sfAvatarInput');
+    if (input) input.value = '';
+}
+
+// Tạo HTML form thêm/sửa học sinh (có avatar)
+function getStudentFormHTML(student = null, showAvatar = true) {
     const s = student || {};
     const classes = APP_STATE.classes.map(c => c.name);
+    const avatarSrc = (s.avatar && s.avatar.startsWith('data:image')) ? s.avatar : DEFAULT_AVATAR;
     return `
+        ${showAvatar ? `
+        <div style="text-align:center; margin-bottom:1rem;">
+            <img id="sfAvatarPreview" src="${avatarSrc}" class="profile-avatar" style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid var(--primary);">
+            <div style="margin-top:0.5rem; display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+                <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+                    <i class="fas fa-upload"></i> Tải ảnh
+                    <input type="file" id="sfAvatarInput" accept="image/*" style="display:none" onchange="previewAvatar(this)">
+                </label>
+                <button class="btn btn-primary btn-sm" onclick="openCamera()"><i class="fas fa-camera"></i> Chụp ảnh</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAvatar()"><i class="fas fa-times"></i> Xóa ảnh</button>
+            </div>
+        </div>
+        ` : ''}
         <div class="form-grid">
             <div class="form-group"><label>Họ và tên *</label><input type="text" id="sfFullName" value="${s.fullName || ''}" placeholder="Nguyễn Văn A"></div>
             <div class="form-group"><label>Ngày sinh *</label><input type="date" id="sfDob" value="${s.dob || ''}"></div>
@@ -720,6 +814,107 @@ function getStudentFormData() {
     };
 }
 
+function openAddStudent() {
+    showModal('Thêm học sinh', getStudentFormHTML(null, true), 'Thêm', 'Hủy').then(async confirmed => {
+        if (confirmed) {
+            const data = getStudentFormData();
+            if (!data.fullName || !data.dob) {
+                showToast('Vui lòng điền đầy đủ thông tin!', 'error');
+                return;
+            }
+            data.id = `HS${String(10000 + APP_STATE.students.length + 1).padStart(5, '0')}`;
+            const preview = document.getElementById('sfAvatarPreview');
+            if (preview && preview.src && preview.src.startsWith('data:image')) {
+                data.avatar = preview.src;
+            } else {
+                data.avatar = DEFAULT_AVATAR;
+            }
+            APP_STATE.students.push(data);
+            localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+            updateClassCounts();
+            showToast('Thêm học sinh thành công!');
+            renderPage('students');
+        }
+    });
+}
+
+function editStudent(id) {
+    const student = APP_STATE.students.find(s => s.id === id);
+    if (!student) return;
+    showModal('Sửa học sinh', getStudentFormHTML(student, true), 'Cập nhật', 'Hủy').then(async confirmed => {
+        if (confirmed) {
+            const data = getStudentFormData();
+            if (!data.fullName || !data.dob) {
+                showToast('Vui lòng điền đầy đủ thông tin!', 'error');
+                return;
+            }
+            const preview = document.getElementById('sfAvatarPreview');
+            if (preview && preview.src && preview.src.startsWith('data:image')) {
+                student.avatar = preview.src;
+            }
+            Object.assign(student, data);
+            localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+            updateClassCounts();
+            showToast('Cập nhật thành công!');
+            renderPage('students');
+        }
+    });
+}
+
+function viewStudent(id) {
+    const s = APP_STATE.students.find(st => st.id === id);
+    if (!s) return;
+    const avatarSrc = (s.avatar && s.avatar.startsWith('data:image')) ? s.avatar : DEFAULT_AVATAR;
+    const html = `
+        <div class="profile-header">
+            <img src="${avatarSrc}" class="profile-avatar" id="viewAvatar" alt="avatar" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);">
+            <div class="profile-info">
+                <h2>${s.fullName}</h2>
+                <p><strong>Mã HS:</strong> ${s.id} | <strong>Lớp:</strong> ${s.class} | <strong>Khối:</strong> ${s.grade}</p>
+                <p>${getStatusBadge(s.status)} ${getAcademicBadge(s.academic)}</p>
+                <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+                    <button class="btn btn-primary btn-sm" onclick="downloadAvatar('${s.id}')"><i class="fas fa-download"></i> Tải ảnh</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-grid">
+            <div><label>Ngày sinh</label><p><strong>${formatDate(s.dob)}</strong></p></div>
+            <div><label>Giới tính</label><p><strong>${s.gender}</strong></p></div>
+            <div><label>Địa chỉ</label><p><strong>${s.address || ''}</strong></p></div>
+            <div><label>SĐT</label><p><strong>${s.phone || ''}</strong></p></div>
+            <div><label>Email</label><p><strong>${s.email || ''}</strong></p></div>
+            <div><label>Hạnh kiểm</label><p><strong>${s.conduct || ''}</strong></p></div>
+            <div><label>Điểm TB</label><p><strong>${s.avgScore || 0}</strong></p></div>
+            <div><label>Ngày nhập học</label><p><strong>${formatDate(s.enrollmentDate)}</strong></p></div>
+            <div><label>Tên cha</label><p><strong>${s.fatherName || ''}</strong></p></div>
+            <div><label>Tên mẹ</label><p><strong>${s.motherName || ''}</strong></p></div>
+            <div><label>SĐT phụ huynh</label><p><strong>${s.parentPhone || ''}</strong></p></div>
+            <div><label>Ghi chú</label><p><strong>${s.note || ''}</strong></p></div>
+        </div>
+        <div class="flex gap-2 mt-2">
+            <button class="btn btn-primary btn-sm" onclick="printStudent('${s.id}')"><i class="fas fa-print"></i> In hồ sơ</button>
+        </div>
+    `;
+    showModal('Hồ sơ học sinh', html, 'Đóng', '');
+}
+
+function downloadAvatar(studentId) {
+    const student = APP_STATE.students.find(s => s.id === studentId);
+    if (!student) return;
+    const avatarSrc = (student.avatar && student.avatar.startsWith('data:image')) ? student.avatar : null;
+    if (!avatarSrc || avatarSrc === DEFAULT_AVATAR) {
+        showToast('Học sinh này chưa có ảnh riêng.', 'warning');
+        return;
+    }
+    const link = document.createElement('a');
+    link.href = avatarSrc;
+    link.download = `avatar_${student.fullName.replace(/\s/g,'_')}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Đang tải ảnh...', 'info');
+}
+
 async function deleteStudent(id) {
     const confirmed = await showModal('Xóa học sinh', `Bạn có chắc muốn xóa học sinh <strong>${APP_STATE.students.find(s => s.id === id)?.fullName}</strong>?`, 'Xóa', 'Hủy');
     if (confirmed) {
@@ -749,7 +944,7 @@ async function deleteSelectedStudents() {
 }
 
 // ============================================================
-// 7. IMPORT / EXPORT EXCEL (học sinh)
+// 8. IMPORT / EXPORT EXCEL (học sinh)
 // ============================================================
 function exportExcel() {
     const data = APP_STATE.students.map(s => ({
@@ -865,7 +1060,7 @@ function importExcel(event) {
                     conduct: 'Tốt',
                     avgScore: 0,
                     enrollmentDate: new Date().toISOString().split('T')[0],
-                    avatar: 'images/avatar-default.png'
+                    avatar: DEFAULT_AVATAR
                 };
 
                 if (!classNames.has(newStudent.class)) {
@@ -904,7 +1099,7 @@ function importExcel(event) {
 }
 
 // ============================================================
-// 8. QUẢN LÝ LỚP (có xuất danh sách lớp)
+// 9. QUẢN LÝ LỚP
 // ============================================================
 function renderClasses() {
     const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
@@ -1016,7 +1211,7 @@ async function deleteClass(id) {
 }
 
 // ============================================================
-// 9. QUẢN LÝ ĐIỂM (có xuất điểm lớp)
+// 10. QUẢN LÝ ĐIỂM
 // ============================================================
 function renderScores() {
     const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
@@ -1121,7 +1316,7 @@ function saveScore(studentId) {
 }
 
 // ============================================================
-// 10. ĐIỂM DANH (có xuất Excel)
+// 11. ĐIỂM DANH
 // ============================================================
 function renderAttendance() {
     const today = new Date().toISOString().split('T')[0];
@@ -1272,7 +1467,7 @@ function exportAttendanceExcel() {
 }
 
 // ============================================================
-// 11. QUẢN LÝ KHEN THƯỞNG (có xuất Excel)
+// 12. QUẢN LÝ KHEN THƯỞNG
 // ============================================================
 function generateSampleRewards() {
     return [
@@ -1355,7 +1550,7 @@ async function deleteReward(id) {
 }
 
 // ============================================================
-// 12. QUẢN LÝ KỶ LUẬT (có xuất Excel)
+// 13. QUẢN LÝ KỶ LUẬT
 // ============================================================
 function generateSampleDisciplines() {
     return [
@@ -1438,10 +1633,9 @@ async function deleteDiscipline(id) {
 }
 
 // ============================================================
-// 13. QUẢN LÝ FILE (có lưu base64, tải đúng nội dung, xem trước)
+// 14. QUẢN LÝ FILE
 // ============================================================
 function generateSampleFiles() {
-    // Tạo file mẫu với base64 rỗng (không có nội dung thực)
     return [
         { id: 'F1', name: 'Kế hoạch năm học 2025-2026.pdf', type: 'pdf', size: '2.4 MB', uploadDate: '2025-09-01', desc: 'Kế hoạch chung', data: '' },
         { id: 'F2', name: 'Danh sách lớp 3B1.xlsx', type: 'excel', size: '156 KB', uploadDate: '2025-09-05', desc: '', data: '' },
@@ -1501,7 +1695,7 @@ function openUploadFile() {
             const file = input.files[0];
             const reader = new FileReader();
             reader.onload = function(e) {
-                const base64Data = e.target.result.split(',')[1]; // Lấy phần dữ liệu base64
+                const base64Data = e.target.result.split(',')[1];
                 const newFile = {
                     id: 'F' + Date.now().toString(36),
                     name: file.name,
@@ -1509,19 +1703,18 @@ function openUploadFile() {
                     size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
                     uploadDate: new Date().toISOString().split('T')[0],
                     desc: document.getElementById('fileDesc').value.trim(),
-                    data: base64Data // Lưu nội dung thực tế
+                    data: base64Data
                 };
                 APP_STATE.files.push(newFile);
                 localStorage.setItem('files', JSON.stringify(APP_STATE.files));
                 showToast('Tải file thành công!');
                 renderPage('files');
             };
-            reader.readAsDataURL(file); // Đọc file dưới dạng base64
+            reader.readAsDataURL(file);
         }
     });
 }
 
-// Hàm xem file (hiển thị nội dung trong modal)
 function viewFile(id) {
     const file = APP_STATE.files.find(f => f.id === id);
     if (!file) return;
@@ -1529,21 +1722,17 @@ function viewFile(id) {
         showToast('File này không có dữ liệu để xem (có thể là file mẫu).', 'warning');
         return;
     }
-    // Xác định loại file để hiển thị phù hợp
     const ext = file.name.split('.').pop().toLowerCase();
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext);
     const isPDF = ext === 'pdf';
     const isText = ['txt', 'csv', 'log', 'md', 'json', 'xml'].includes(ext);
-    const isOffice = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext);
 
     let contentHTML = '';
     if (isImage) {
         contentHTML = `<img src="data:image/${ext};base64,${file.data}" style="max-width:100%; max-height:500px; display:block; margin:auto;">`;
     } else if (isPDF) {
-        // Dùng iframe để hiển thị PDF
         contentHTML = `<iframe src="data:application/pdf;base64,${file.data}" style="width:100%; height:500px; border:none;"></iframe>`;
     } else if (isText) {
-        // Giải mã base64 thành text
         try {
             const text = atob(file.data);
             contentHTML = `<pre style="white-space:pre-wrap; max-height:400px; overflow-y:auto; background:#f5f5f5; padding:1rem; border-radius:4px;">${text}</pre>`;
@@ -1551,7 +1740,6 @@ function viewFile(id) {
             contentHTML = `<p class="text-muted">Không thể hiển thị nội dung file này.</p>`;
         }
     } else {
-        // Các file khác: hiển thị thông tin và nút tải xuống
         contentHTML = `
             <div class="text-center" style="padding:2rem 0;">
                 <i class="fas fa-file" style="font-size:4rem; color:var(--primary);"></i>
@@ -1561,7 +1749,6 @@ function viewFile(id) {
             </div>
         `;
     }
-
     showModal('Xem trước file', contentHTML, 'Đóng', '');
 }
 
@@ -1572,7 +1759,6 @@ function downloadFile(id) {
         showToast('File này không có dữ liệu để tải (có thể là file mẫu).', 'warning');
         return;
     }
-    // Chuyển base64 thành blob
     const byteCharacters = atob(file.data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -1627,7 +1813,7 @@ async function deleteFile(id) {
 }
 
 // ============================================================
-// 14. THỐNG KÊ
+// 15. THỐNG KÊ
 // ============================================================
 function renderStatistics() {
     return `
@@ -1674,7 +1860,7 @@ function initStatCharts() {
 }
 
 // ============================================================
-// 15. TÌM KIẾM, CÀI ĐẶT, IN ẤN
+// 16. TÌM KIẾM, CÀI ĐẶT, IN ẤN
 // ============================================================
 function renderSearch() {
     return `
@@ -1812,7 +1998,7 @@ function printStudent(id) {
 }
 
 // ============================================================
-// 16. CÁC HÀM XUẤT EXCEL
+// 17. CÁC HÀM XUẤT EXCEL BỔ SUNG
 // ============================================================
 function exportClassList() {
     const cls = document.getElementById('exportClassSelect')?.value;
@@ -1917,7 +2103,7 @@ function exportDisciplines() {
 }
 
 // ============================================================
-// 17. NAVIGATION & LOGIN
+// 18. NAVIGATION & LOGIN
 // ============================================================
 function initNavigation() {
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -2008,7 +2194,7 @@ function initLogin() {
 }
 
 // ============================================================
-// 18. KHỞI ĐỘNG
+// 19. KHỞI ĐỘNG
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     initData();
@@ -2070,4 +2256,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportScoreClass = exportScoreClass;
     window.exportRewards = exportRewards;
     window.exportDisciplines = exportDisciplines;
+    window.previewAvatar = previewAvatar;
+    window.openCamera = openCamera;
+    window.capturePhoto = capturePhoto;
+    window.closeCamera = closeCamera;
+    window.clearAvatar = clearAvatar;
+    window.downloadAvatar = downloadAvatar;
 });
