@@ -610,7 +610,7 @@ function toggleSelectAll() {
 }
 
 // ============================================================
-// 7. CÁC HÀM XỬ LÝ AVATAR VÀ THÊM/SỬA HỌC SINH
+// 7. CÁC HÀM XỬ LÝ AVATAR VÀ THÊM/SỬA HỌC SINH (BỎ CAMERA)
 // ============================================================
 
 // Resize ảnh
@@ -643,7 +643,7 @@ function resizeImage(dataUrl, maxWidth = 200, maxHeight = 200, quality = 0.7) {
     });
 }
 
-// Preview avatar
+// Preview avatar (chỉ tải từ file)
 function previewAvatar(input) {
     const preview = document.getElementById('sfAvatarPreview');
     if (input.files && input.files[0]) {
@@ -657,108 +657,7 @@ function previewAvatar(input) {
     }
 }
 
-// ============================================================
-// SỬA LỖI CAMERA: LƯU THAM CHIẾU PREVIEW TRƯỚC KHI MỞ
-// ============================================================
-let avatarPreviewRef = null; // biến toàn cục lưu tham chiếu preview
-
-function openCamera() {
-    // Lưu tham chiếu đến preview avatar trước khi mở camera
-    avatarPreviewRef = document.getElementById('sfAvatarPreview');
-    if (!avatarPreviewRef) {
-        showToast('Không tìm thấy khung preview avatar. Vui lòng mở form thêm/sửa học sinh trước.', 'error');
-        return;
-    }
-
-    const videoHTML = `
-        <div style="text-align:center;">
-            <video id="cameraVideo" autoplay playsinline style="width:100%; max-width:400px; border-radius:8px; background:#000;"></video>
-            <div style="margin-top:0.5rem; display:flex; gap:0.5rem; justify-content:center;">
-                <button class="btn btn-primary" onclick="capturePhoto()"><i class="fas fa-camera"></i> Chụp</button>
-                <button class="btn btn-secondary" onclick="closeCamera()">Đóng</button>
-            </div>
-            <canvas id="cameraCanvas" style="display:none;"></canvas>
-        </div>
-    `;
-    showModal('Chụp ảnh từ webcam', videoHTML, '', '').then(() => {});
-    setTimeout(() => {
-        const video = document.getElementById('cameraVideo');
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    video.srcObject = stream;
-                    window.cameraStream = stream;
-                    video.play().catch(e => console.warn('Video play error:', e));
-                })
-                .catch(err => {
-                    showToast('Không thể truy cập webcam: ' + err.message, 'error');
-                });
-        } else {
-            showToast('Trình duyệt không hỗ trợ webcam.', 'error');
-        }
-    }, 300);
-}
-
-function capturePhoto() {
-    const video = document.getElementById('cameraVideo');
-    const canvas = document.getElementById('cameraCanvas');
-    if (!video || !canvas) {
-        showToast('Không tìm thấy camera.', 'error');
-        return;
-    }
-    if (video.readyState < 2) {
-        showToast('Camera chưa sẵn sàng, vui lòng thử lại.', 'warning');
-        return;
-    }
-    // Chụp ảnh từ video
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-    
-    // Cập nhật preview avatar (dùng tham chiếu đã lưu)
-    if (avatarPreviewRef) {
-        avatarPreviewRef.src = dataUrl;
-        showToast('Đã chụp ảnh!', 'success');
-    } else {
-        // Fallback: thử tìm lại
-        const fallback = document.getElementById('sfAvatarPreview');
-        if (fallback) {
-            fallback.src = dataUrl;
-            avatarPreviewRef = fallback;
-            showToast('Đã chụp ảnh!', 'success');
-        } else {
-            showToast('Không tìm thấy preview avatar. Vui lòng thử lại sau khi mở form.', 'error');
-        }
-    }
-    
-    // Đóng modal camera
-    closeCamera();
-    
-    // Resize ảnh (chạy ngầm)
-    resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
-        if (avatarPreviewRef) avatarPreviewRef.src = resizedUrl;
-    }).catch(err => console.warn('Resize lỗi:', err));
-}
-
-function closeCamera() {
-    if (window.cameraStream) {
-        window.cameraStream.getTracks().forEach(track => track.stop());
-        window.cameraStream = null;
-    }
-    const video = document.getElementById('cameraVideo');
-    if (video) {
-        video.srcObject = null;
-        video.pause();
-    }
-    // Đóng modal camera
-    const modalContainer = document.getElementById('modalContainer');
-    if (modalContainer && !modalContainer.classList.contains('hidden')) {
-        modalContainer.classList.add('hidden');
-    }
-}
-
+// Xóa avatar
 function clearAvatar() {
     const preview = document.getElementById('sfAvatarPreview');
     if (preview) preview.src = DEFAULT_AVATAR;
@@ -779,7 +678,6 @@ function getStudentFormHTML(student = null, showAvatar = true) {
                     <i class="fas fa-upload"></i> Tải ảnh
                     <input type="file" id="sfAvatarInput" accept="image/*" style="display:none" onchange="previewAvatar(this)">
                 </label>
-                <button class="btn btn-primary btn-sm" onclick="openCamera()"><i class="fas fa-camera"></i> Chụp ảnh</button>
                 <button class="btn btn-danger btn-sm" onclick="clearAvatar()"><i class="fas fa-times"></i> Xóa ảnh</button>
             </div>
         </div>
@@ -1991,27 +1889,130 @@ function printStudents() {
 function printStudent(id) {
     const s = APP_STATE.students.find(st => st.id === id);
     if (!s) return;
+    const avatarSrc = (s.avatar && s.avatar.startsWith('data:image')) ? s.avatar : DEFAULT_AVATAR;
     const win = window.open('', '_blank');
     win.document.write(`
-        <html><head><title>Hồ sơ học sinh</title>
-        <style>body { font-family: Arial, sans-serif; padding: 2rem; } table { width: 100%; border-collapse: collapse; } td { padding: 0.5rem; border: 1px solid #ccc; }</style>
-        </head><body>
-        <h1>HỒ SƠ HỌC SINH</h1>
-        <p><strong>Mã HS:</strong> ${s.id}</p>
-        <p><strong>Họ tên:</strong> ${s.fullName}</p>
-        <p><strong>Ngày sinh:</strong> ${formatDate(s.dob)}</p>
-        <p><strong>Giới tính:</strong> ${s.gender}</p>
-        <p><strong>Lớp:</strong> ${s.class} - Khối ${s.grade}</p>
-        <p><strong>Địa chỉ:</strong> ${s.address || ''}</p>
-        <p><strong>SĐT:</strong> ${s.phone || ''}</p>
-        <p><strong>Email:</strong> ${s.email || ''}</p>
-        <p><strong>Học lực:</strong> ${s.academic}</p>
-        <p><strong>Hạnh kiểm:</strong> ${s.conduct}</p>
-        <p><strong>Điểm TB:</strong> ${s.avgScore}</p>
-        <p><strong>Trạng thái:</strong> ${s.status}</p>
-        <p><strong>Ngày nhập học:</strong> ${formatDate(s.enrollmentDate)}</p>
-        <script>window.print();<\/script>
-        </body></html>
+        <html>
+        <head>
+            <title>Hồ sơ học sinh</title>
+            <style>
+                body {
+                    font-family: 'Times New Roman', Times, serif;
+                    padding: 2rem;
+                    margin: 0;
+                    background: #fff;
+                    color: #000;
+                }
+                .container {
+                    max-width: 800px;
+                    margin: 0 auto;
+                    border: 1px solid #ccc;
+                    padding: 2rem;
+                    border-radius: 8px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                }
+                .header {
+                    display: flex;
+                    align-items: center;
+                    gap: 2rem;
+                    border-bottom: 2px solid #2563eb;
+                    padding-bottom: 1rem;
+                    margin-bottom: 1.5rem;
+                }
+                .avatar {
+                    width: 120px;
+                    height: 120px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    border: 3px solid #2563eb;
+                    flex-shrink: 0;
+                }
+                .info {
+                    flex: 1;
+                }
+                .info h1 {
+                    margin: 0 0 0.25rem 0;
+                    font-size: 1.8rem;
+                    color: #1e293b;
+                }
+                .info .sub {
+                    font-size: 1rem;
+                    color: #475569;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 1rem;
+                }
+                td {
+                    padding: 0.5rem 0.3rem;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .label {
+                    font-weight: 600;
+                    width: 40%;
+                    color: #334155;
+                }
+                .value {
+                    width: 60%;
+                    color: #0f172a;
+                }
+                .footer {
+                    margin-top: 2rem;
+                    text-align: center;
+                    font-size: 0.85rem;
+                    color: #94a3b8;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 1rem;
+                }
+                @media print {
+                    body { padding: 0.5in; }
+                    .container { border: none; box-shadow: none; padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <img src="${avatarSrc}" alt="Avatar" class="avatar" onerror="this.style.display='none'">
+                    <div class="info">
+                        <h1>${s.fullName}</h1>
+                        <div class="sub"><strong>Mã HS:</strong> ${s.id} &nbsp;|&nbsp; <strong>Lớp:</strong> ${s.class} &nbsp;|&nbsp; <strong>Khối:</strong> ${s.grade}</div>
+                        <div class="sub" style="margin-top:0.25rem;">
+                            <span style="display:inline-block;background:#dbeafe;padding:0.1rem 0.6rem;border-radius:12px;font-size:0.8rem;">${s.status}</span>
+                            <span style="display:inline-block;background:#fef3c7;padding:0.1rem 0.6rem;border-radius:12px;font-size:0.8rem;margin-left:0.5rem;">${s.academic}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <table>
+                    <tr><td class="label">Ngày sinh</td><td class="value">${formatDate(s.dob)}</td></tr>
+                    <tr><td class="label">Giới tính</td><td class="value">${s.gender}</td></tr>
+                    <tr><td class="label">Địa chỉ</td><td class="value">${s.address || ''}</td></tr>
+                    <tr><td class="label">Số điện thoại</td><td class="value">${s.phone || ''}</td></tr>
+                    <tr><td class="label">Email</td><td class="value">${s.email || ''}</td></tr>
+                    <tr><td class="label">Học lực</td><td class="value">${s.academic}</td></tr>
+                    <tr><td class="label">Hạnh kiểm</td><td class="value">${s.conduct || ''}</td></tr>
+                    <tr><td class="label">Điểm trung bình</td><td class="value">${s.avgScore || 0}</td></tr>
+                    <tr><td class="label">Trạng thái</td><td class="value">${s.status}</td></tr>
+                    <tr><td class="label">Ngày nhập học</td><td class="value">${formatDate(s.enrollmentDate)}</td></tr>
+                    <tr><td class="label">Tên cha</td><td class="value">${s.fatherName || ''}</td></tr>
+                    <tr><td class="label">Tên mẹ</td><td class="value">${s.motherName || ''}</td></tr>
+                    <tr><td class="label">SĐT phụ huynh</td><td class="value">${s.parentPhone || ''}</td></tr>
+                    <tr><td class="label">Ghi chú</td><td class="value">${s.note || ''}</td></tr>
+                </table>
+
+                <div class="footer">
+                    &copy; ${new Date().getFullYear()} Trường Tiểu học Trần Quốc Toản - Hệ thống QLHS
+                </div>
+            </div>
+            <script>
+                window.onload = function() {
+                    window.print();
+                };
+            <\/script>
+        </body>
+        </html>
     `);
     win.document.close();
 }
@@ -2276,9 +2277,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportRewards = exportRewards;
     window.exportDisciplines = exportDisciplines;
     window.previewAvatar = previewAvatar;
-    window.openCamera = openCamera;
-    window.capturePhoto = capturePhoto;
-    window.closeCamera = closeCamera;
     window.clearAvatar = clearAvatar;
     window.downloadAvatar = downloadAvatar;
 });
