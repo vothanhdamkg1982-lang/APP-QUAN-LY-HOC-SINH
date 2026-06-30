@@ -118,6 +118,7 @@ function initData() {
     APP_STATE.classes = classes;
     updateClassCounts();
 
+    // Khởi tạo điểm mới (4 cột)
     let scores = JSON.parse(localStorage.getItem('scores'));
     if (!scores) {
         scores = [];
@@ -439,7 +440,7 @@ function renderStudents() {
                 <div class="flex gap-2">
                     <button class="btn btn-primary btn-sm" onclick="openAddStudent()"><i class="fas fa-plus"></i> Thêm</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteSelectedStudents()"><i class="fas fa-trash"></i> Xóa nhiều</button>
-                    <button class="btn btn-success btn-sm" onclick="exportStudentsExcel()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
+                    <button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Excel</button>
                     <button class="btn btn-secondary btn-sm" onclick="downloadSampleExcel()"><i class="fas fa-file-excel"></i> Tải mẫu</button>
                     <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importFileInput').click()"><i class="fas fa-upload"></i> Import Excel</button>
                     <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
@@ -749,19 +750,10 @@ async function deleteSelectedStudents() {
 }
 
 // ============================================================
-// 7. EXPORT / IMPORT EXCEL (Học sinh, Điểm, Khen thưởng, Kỷ luật)
+// 7. IMPORT / EXPORT EXCEL (học sinh)
 // ============================================================
-
-// --- Xuất danh sách học sinh (có thể lọc theo lớp) ---
-function exportStudentsExcel() {
-    const cls = document.getElementById('filterClass')?.value || '';
-    let list = APP_STATE.students;
-    if (cls) list = list.filter(s => s.class === cls);
-    if (list.length === 0) {
-        showToast('Không có học sinh để xuất.', 'warning');
-        return;
-    }
-    const data = list.map(s => ({
+function exportExcel() {
+    const data = APP_STATE.students.map(s => ({
         'Mã HS': s.id,
         'Họ tên': s.fullName,
         'Ngày sinh': s.dob,
@@ -779,12 +771,10 @@ function exportStudentsExcel() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'HocSinh');
-    const fileName = cls ? `Danh_sach_${cls}_${new Date().toISOString().slice(0,10)}.xlsx` : `Danh_sach_all_${new Date().toISOString().slice(0,10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    XLSX.writeFile(wb, `Danh_sach_hoc_sinh_${new Date().toISOString().slice(0,10)}.xlsx`);
     showToast('Xuất Excel thành công!');
 }
 
-// --- Tải file mẫu import ---
 function downloadSampleExcel() {
     const sampleData = [{
         'Mã HS': 'HS10001',
@@ -822,7 +812,6 @@ function downloadSampleExcel() {
     showToast('Đã tải file mẫu!');
 }
 
-// --- Import từ Excel ---
 function importExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -915,45 +904,25 @@ function importExcel(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// --- Xuất điểm theo lớp (có thể chọn kỳ) ---
-function exportScoresExcel() {
-    const cls = document.getElementById('scoreClass')?.value || '';
-    let list = APP_STATE.students;
-    if (cls) list = list.filter(s => s.class === cls);
-    if (list.length === 0) {
-        showToast('Không có học sinh để xuất.', 'warning');
-        return;
-    }
-    const data = list.map(s => {
-        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: '', cuoiKy1: 0, giuaKy2: '', cuoiKy2: 0, avg: 0 };
-        return {
-            'Mã HS': s.id,
-            'Họ tên': s.fullName,
-            'Lớp': s.class,
-            'Giữa kỳ 1': sc.giuaKy1,
-            'Cuối kỳ 1': sc.cuoiKy1,
-            'Giữa kỳ 2': sc.giuaKy2,
-            'Cuối kỳ 2': sc.cuoiKy2,
-            'Điểm TB': sc.avg
-        };
-    });
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Diem');
-    const fileName = cls ? `Diem_${cls}_${new Date().toISOString().slice(0,10)}.xlsx` : `Diem_all_${new Date().toISOString().slice(0,10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    showToast('Xuất Excel điểm thành công!');
-}
-
 // ============================================================
-// 8. QUẢN LÝ LỚP
+// 8. QUẢN LÝ LỚP (có xuất danh sách lớp)
 // ============================================================
 function renderClasses() {
+    const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
     return `
         <div class="card">
             <div class="flex-between mb-2">
                 <h3 class="card-title"><i class="fas fa-chalkboard-teacher"></i> Danh sách lớp</h3>
-                <button class="btn btn-primary btn-sm" onclick="openAddClass()"><i class="fas fa-plus"></i> Thêm lớp</button>
+                <div class="flex gap-2">
+                    <button class="btn btn-primary btn-sm" onclick="openAddClass()"><i class="fas fa-plus"></i> Thêm lớp</button>
+                    <div class="flex gap-1" style="align-items:center;">
+                        <select id="exportClassSelect" style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:4px;">
+                            <option value="">Chọn lớp</option>
+                            ${classOptions}
+                        </select>
+                        <button class="btn btn-success btn-sm" onclick="exportClassList()"><i class="fas fa-file-excel"></i> Xuất danh sách</button>
+                    </div>
+                </div>
             </div>
             <div class="table-wrapper">
                 <table>
@@ -1048,19 +1017,26 @@ async function deleteClass(id) {
 }
 
 // ============================================================
-// 9. QUẢN LÝ ĐIỂM
+// 9. QUẢN LÝ ĐIỂM (có xuất điểm lớp)
 // ============================================================
 function renderScores() {
+    const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
     return `
         <div class="card">
             <div class="flex-between mb-2">
                 <h3 class="card-title"><i class="fas fa-pencil-alt"></i> Quản lý điểm</h3>
-                <button class="btn btn-success btn-sm" onclick="exportScoresExcel()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
+                <div class="flex gap-2">
+                    <select id="exportScoreClass" style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:4px;">
+                        <option value="">Chọn lớp</option>
+                        ${classOptions}
+                    </select>
+                    <button class="btn btn-success btn-sm" onclick="exportScoreClass()"><i class="fas fa-file-excel"></i> Xuất điểm lớp</button>
+                </div>
             </div>
             <p class="text-muted mb-2">Nhập điểm và nhận xét cho học sinh.</p>
             <div class="search-bar">
                 <input type="text" id="scoreSearch" placeholder="Tìm học sinh..." oninput="initScoreTable()">
-                <select id="scoreClass" onchange="initScoreTable()"><option value="">Tất cả lớp</option>${APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}</select>
+                <select id="scoreClass" onchange="initScoreTable()"><option value="">Tất cả lớp</option>${classOptions}</select>
             </div>
             <div class="table-wrapper">
                 <table>
@@ -1146,7 +1122,7 @@ function saveScore(studentId) {
 }
 
 // ============================================================
-// 10. ĐIỂM DANH (CÓ XUẤT EXCEL)
+// 10. ĐIỂM DANH (có xuất Excel)
 // ============================================================
 function renderAttendance() {
     const today = new Date().toISOString().split('T')[0];
@@ -1297,7 +1273,7 @@ function exportAttendanceExcel() {
 }
 
 // ============================================================
-// 11. QUẢN LÝ KHEN THƯỞNG (CÓ LỌC LỚP VÀ XUẤT EXCEL)
+// 11. QUẢN LÝ KHEN THƯỞNG (có xuất Excel)
 // ============================================================
 function generateSampleRewards() {
     return [
@@ -1309,59 +1285,37 @@ function generateSampleRewards() {
 function renderRewards() {
     const rewards = APP_STATE.rewards;
     const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
-    const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
     return `
         <div class="card">
             <div class="flex-between mb-2">
                 <h3 class="card-title"><i class="fas fa-medal"></i> Khen thưởng</h3>
                 <div class="flex gap-2">
                     <button class="btn btn-primary btn-sm" onclick="openAddReward()"><i class="fas fa-plus"></i> Thêm</button>
-                    <button class="btn btn-success btn-sm" onclick="exportRewardsExcel()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
+                    <button class="btn btn-success btn-sm" onclick="exportRewards()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
                 </div>
-            </div>
-            <div class="search-bar">
-                <select id="rewardClassFilter" onchange="renderRewardsTable()">
-                    <option value="">Tất cả lớp</option>
-                    ${classOptions}
-                </select>
             </div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>STT</th><th>Học sinh</th><th>Lớp</th><th>Ngày</th><th>Nội dung</th><th>Người quyết định</th><th>Thao tác</th></tr></thead>
-                    <tbody id="rewardTableBody">
-                        ${renderRewardsTable()}
+                    <thead><tr><th>STT</th><th>Học sinh</th><th>Ngày</th><th>Nội dung</th><th>Người quyết định</th><th>Thao tác</th></tr></thead>
+                    <tbody>
+                        ${rewards.length === 0 ? '<tr><td colspan="6" class="text-center text-muted">Chưa có khen thưởng nào.</td></tr>' :
+                        rewards.map((r, i) => `
+                            <tr>
+                                <td>${i+1}</td>
+                                <td>${studentMap[r.studentId] || 'Không xác định'}</td>
+                                <td>${formatDate(r.date)}</td>
+                                <td>${r.content}</td>
+                                <td>${r.decisionBy}</td>
+                                <td>
+                                    <button class="btn-icon" onclick="deleteReward('${r.id}')" style="color:#dc2626;"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
             </div>
         </div>
     `;
-}
-
-function renderRewardsTable() {
-    const clsFilter = document.getElementById('rewardClassFilter')?.value || '';
-    let filtered = APP_STATE.rewards;
-    if (clsFilter) {
-        const studentIds = APP_STATE.students.filter(s => s.class === clsFilter).map(s => s.id);
-        filtered = filtered.filter(r => studentIds.includes(r.studentId));
-    }
-    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, { fullName: s.fullName, class: s.class }]));
-    if (filtered.length === 0) {
-        return '<tr><td colspan="7" class="text-center text-muted">Không có khen thưởng nào.</td></tr>';
-    }
-    return filtered.map((r, i) => {
-        const student = studentMap[r.studentId];
-        return `<tr>
-            <td>${i+1}</td>
-            <td>${student ? student.fullName : 'Không xác định'}</td>
-            <td>${student ? student.class : ''}</td>
-            <td>${formatDate(r.date)}</td>
-            <td>${r.content}</td>
-            <td>${r.decisionBy}</td>
-            <td>
-                <button class="btn-icon" onclick="deleteReward('${r.id}')" style="color:#dc2626;"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
-    }).join('');
 }
 
 function openAddReward() {
@@ -1401,34 +1355,8 @@ async function deleteReward(id) {
     }
 }
 
-function exportRewardsExcel() {
-    const cls = document.getElementById('rewardClassFilter')?.value || '';
-    let list = APP_STATE.rewards;
-    if (cls) {
-        const studentIds = APP_STATE.students.filter(s => s.class === cls).map(s => s.id);
-        list = list.filter(r => studentIds.includes(r.studentId));
-    }
-    if (list.length === 0) {
-        showToast('Không có dữ liệu khen thưởng để xuất.', 'warning');
-        return;
-    }
-    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
-    const data = list.map(r => ({
-        'Học sinh': studentMap[r.studentId] || 'Không xác định',
-        'Ngày': r.date,
-        'Nội dung': r.content,
-        'Người quyết định': r.decisionBy
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'KhenThuong');
-    const fileName = cls ? `Khen_thuong_${cls}_${new Date().toISOString().slice(0,10)}.xlsx` : `Khen_thuong_all_${new Date().toISOString().slice(0,10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    showToast('Xuất Excel khen thưởng thành công!');
-}
-
 // ============================================================
-// 12. QUẢN LÝ KỶ LUẬT (CÓ LỌC LỚP VÀ XUẤT EXCEL)
+// 12. QUẢN LÝ KỶ LUẬT (có xuất Excel)
 // ============================================================
 function generateSampleDisciplines() {
     return [
@@ -1438,59 +1366,39 @@ function generateSampleDisciplines() {
 }
 
 function renderDisciplines() {
-    const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    const disciplines = APP_STATE.disciplines;
+    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
     return `
         <div class="card">
             <div class="flex-between mb-2">
                 <h3 class="card-title"><i class="fas fa-gavel"></i> Kỷ luật</h3>
                 <div class="flex gap-2">
                     <button class="btn btn-primary btn-sm" onclick="openAddDiscipline()"><i class="fas fa-plus"></i> Thêm</button>
-                    <button class="btn btn-success btn-sm" onclick="exportDisciplinesExcel()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
+                    <button class="btn btn-success btn-sm" onclick="exportDisciplines()"><i class="fas fa-file-excel"></i> Xuất Excel</button>
                 </div>
-            </div>
-            <div class="search-bar">
-                <select id="disciplineClassFilter" onchange="renderDisciplinesTable()">
-                    <option value="">Tất cả lớp</option>
-                    ${classOptions}
-                </select>
             </div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>STT</th><th>Học sinh</th><th>Lớp</th><th>Ngày</th><th>Nội dung</th><th>Người quyết định</th><th>Thao tác</th></tr></thead>
-                    <tbody id="disciplineTableBody">
-                        ${renderDisciplinesTable()}
+                    <thead><tr><th>STT</th><th>Học sinh</th><th>Ngày</th><th>Nội dung</th><th>Người quyết định</th><th>Thao tác</th></tr></thead>
+                    <tbody>
+                        ${disciplines.length === 0 ? '<tr><td colspan="6" class="text-center text-muted">Chưa có kỷ luật nào.</td></tr>' :
+                        disciplines.map((d, i) => `
+                            <tr>
+                                <td>${i+1}</td>
+                                <td>${studentMap[d.studentId] || 'Không xác định'}</td>
+                                <td>${formatDate(d.date)}</td>
+                                <td>${d.content}</td>
+                                <td>${d.decisionBy}</td>
+                                <td>
+                                    <button class="btn-icon" onclick="deleteDiscipline('${d.id}')" style="color:#dc2626;"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
             </div>
         </div>
     `;
-}
-
-function renderDisciplinesTable() {
-    const clsFilter = document.getElementById('disciplineClassFilter')?.value || '';
-    let filtered = APP_STATE.disciplines;
-    if (clsFilter) {
-        const studentIds = APP_STATE.students.filter(s => s.class === clsFilter).map(s => s.id);
-        filtered = filtered.filter(d => studentIds.includes(d.studentId));
-    }
-    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, { fullName: s.fullName, class: s.class }]));
-    if (filtered.length === 0) {
-        return '<tr><td colspan="7" class="text-center text-muted">Không có kỷ luật nào.</td></tr>';
-    }
-    return filtered.map((d, i) => {
-        const student = studentMap[d.studentId];
-        return `<tr>
-            <td>${i+1}</td>
-            <td>${student ? student.fullName : 'Không xác định'}</td>
-            <td>${student ? student.class : ''}</td>
-            <td>${formatDate(d.date)}</td>
-            <td>${d.content}</td>
-            <td>${d.decisionBy}</td>
-            <td>
-                <button class="btn-icon" onclick="deleteDiscipline('${d.id}')" style="color:#dc2626;"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
-    }).join('');
 }
 
 function openAddDiscipline() {
@@ -1528,32 +1436,6 @@ async function deleteDiscipline(id) {
         showToast('Đã xóa!', 'warning');
         renderPage('disciplines');
     }
-}
-
-function exportDisciplinesExcel() {
-    const cls = document.getElementById('disciplineClassFilter')?.value || '';
-    let list = APP_STATE.disciplines;
-    if (cls) {
-        const studentIds = APP_STATE.students.filter(s => s.class === cls).map(s => s.id);
-        list = list.filter(d => studentIds.includes(d.studentId));
-    }
-    if (list.length === 0) {
-        showToast('Không có dữ liệu kỷ luật để xuất.', 'warning');
-        return;
-    }
-    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
-    const data = list.map(d => ({
-        'Học sinh': studentMap[d.studentId] || 'Không xác định',
-        'Ngày': d.date,
-        'Nội dung': d.content,
-        'Người quyết định': d.decisionBy
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'KyLuat');
-    const fileName = cls ? `Ky_luat_${cls}_${new Date().toISOString().slice(0,10)}.xlsx` : `Ky_luat_all_${new Date().toISOString().slice(0,10)}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    showToast('Xuất Excel kỷ luật thành công!');
 }
 
 // ============================================================
@@ -1843,7 +1725,116 @@ function printStudent(id) {
 }
 
 // ============================================================
-// 16. NAVIGATION & LOGIN
+// 16. CÁC HÀM XUẤT EXCEL MỚI (theo yêu cầu)
+// ============================================================
+// Xuất danh sách học sinh của một lớp
+function exportClassList() {
+    const cls = document.getElementById('exportClassSelect')?.value;
+    if (!cls) {
+        showToast('Vui lòng chọn lớp để xuất.', 'warning');
+        return;
+    }
+    const students = APP_STATE.students.filter(s => s.class === cls);
+    if (students.length === 0) {
+        showToast('Lớp này chưa có học sinh.', 'warning');
+        return;
+    }
+    const data = students.map(s => ({
+        'Mã HS': s.id,
+        'Họ tên': s.fullName,
+        'Ngày sinh': s.dob,
+        'Giới tính': s.gender,
+        'Lớp': s.class,
+        'Khối': s.grade,
+        'Địa chỉ': s.address,
+        'SĐT': s.phone,
+        'Email': s.email,
+        'Học lực': s.academic,
+        'Hạnh kiểm': s.conduct,
+        'Điểm TB': s.avgScore,
+        'Trạng thái': s.status
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'DanhSachLop');
+    XLSX.writeFile(wb, `Danh_sach_lop_${cls}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast(`Xuất danh sách lớp ${cls} thành công!`);
+}
+
+// Xuất điểm của một lớp (bao gồm cả nhận xét)
+function exportScoreClass() {
+    const cls = document.getElementById('exportScoreClass')?.value;
+    if (!cls) {
+        showToast('Vui lòng chọn lớp để xuất điểm.', 'warning');
+        return;
+    }
+    const students = APP_STATE.students.filter(s => s.class === cls);
+    if (students.length === 0) {
+        showToast('Lớp này chưa có học sinh.', 'warning');
+        return;
+    }
+    const data = students.map(s => {
+        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: 'Tốt', cuoiKy1: 0, giuaKy2: 'Tốt', cuoiKy2: 0, avg: 0 };
+        return {
+            'Mã HS': s.id,
+            'Họ tên': s.fullName,
+            'Lớp': s.class,
+            'Giữa kỳ 1': sc.giuaKy1,
+            'Cuối kỳ 1': sc.cuoiKy1,
+            'Giữa kỳ 2': sc.giuaKy2,
+            'Cuối kỳ 2': sc.cuoiKy2,
+            'Điểm trung bình': sc.avg
+        };
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'DiemLop');
+    XLSX.writeFile(wb, `Diem_lop_${cls}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast(`Xuất điểm lớp ${cls} thành công!`);
+}
+
+// Xuất danh sách khen thưởng
+function exportRewards() {
+    if (APP_STATE.rewards.length === 0) {
+        showToast('Chưa có dữ liệu khen thưởng.', 'warning');
+        return;
+    }
+    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
+    const data = APP_STATE.rewards.map(r => ({
+        'Học sinh': studentMap[r.studentId] || 'Không xác định',
+        'Ngày': r.date,
+        'Nội dung': r.content,
+        'Người quyết định': r.decisionBy
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'KhenThuong');
+    XLSX.writeFile(wb, `Khen_thuong_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Xuất khen thưởng thành công!');
+}
+
+// Xuất danh sách kỷ luật
+function exportDisciplines() {
+    if (APP_STATE.disciplines.length === 0) {
+        showToast('Chưa có dữ liệu kỷ luật.', 'warning');
+        return;
+    }
+    const studentMap = Object.fromEntries(APP_STATE.students.map(s => [s.id, s.fullName]));
+    const data = APP_STATE.disciplines.map(d => ({
+        'Học sinh': studentMap[d.studentId] || 'Không xác định',
+        'Ngày': d.date,
+        'Nội dung': d.content,
+        'Người quyết định': d.decisionBy
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'KyLuat');
+    XLSX.writeFile(wb, `Ky_luat_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Xuất kỷ luật thành công!');
+}
+
+// ============================================================
+// 17. NAVIGATION & LOGIN
 // ============================================================
 function initNavigation() {
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -1934,7 +1925,7 @@ function initLogin() {
 }
 
 // ============================================================
-// 17. KHỞI ĐỘNG
+// 18. KHỞI ĐỘNG
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     initData();
@@ -1974,10 +1965,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.globalSearch = globalSearch;
     window.saveSettings = saveSettings;
     window.changePassword = changePassword;
-    window.exportStudentsExcel = exportStudentsExcel;
+    window.exportExcel = exportExcel;
     window.downloadSampleExcel = downloadSampleExcel;
     window.importExcel = importExcel;
-    window.exportScoresExcel = exportScoresExcel;
     window.printStudents = printStudents;
     window.printStudent = printStudent;
     window.loadAttendance = loadAttendance;
@@ -1986,13 +1976,14 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportAttendanceExcel = exportAttendanceExcel;
     window.openAddReward = openAddReward;
     window.deleteReward = deleteReward;
-    window.renderRewardsTable = renderRewardsTable;
-    window.exportRewardsExcel = exportRewardsExcel;
     window.openAddDiscipline = openAddDiscipline;
     window.deleteDiscipline = deleteDiscipline;
-    window.renderDisciplinesTable = renderDisciplinesTable;
-    window.exportDisciplinesExcel = exportDisciplinesExcel;
     window.openUploadFile = openUploadFile;
     window.downloadFile = downloadFile;
     window.deleteFile = deleteFile;
+    // Thêm các hàm xuất mới
+    window.exportClassList = exportClassList;
+    window.exportScoreClass = exportScoreClass;
+    window.exportRewards = exportRewards;
+    window.exportDisciplines = exportDisciplines;
 });
