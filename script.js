@@ -118,7 +118,6 @@ function initData() {
     APP_STATE.classes = classes;
     updateClassCounts();
 
-    // Khởi tạo điểm mới (4 cột)
     let scores = JSON.parse(localStorage.getItem('scores'));
     if (!scores) {
         scores = [];
@@ -1439,13 +1438,14 @@ async function deleteDiscipline(id) {
 }
 
 // ============================================================
-// 13. QUẢN LÝ FILE
+// 13. QUẢN LÝ FILE (có lưu base64, tải đúng nội dung, xem trước)
 // ============================================================
 function generateSampleFiles() {
+    // Tạo file mẫu với base64 rỗng (không có nội dung thực)
     return [
-        { id: 'F1', name: 'Kế hoạch năm học 2025-2026.pdf', type: 'pdf', size: '2.4 MB', uploadDate: '2025-09-01', studentId: null, desc: 'Kế hoạch chung' },
-        { id: 'F2', name: 'Danh sách lớp 3B1.xlsx', type: 'excel', size: '156 KB', uploadDate: '2025-09-05', studentId: null, desc: '' },
-        { id: 'F3', name: 'Ảnh hoạt động ngoại khóa.jpg', type: 'image', size: '3.1 MB', uploadDate: '2025-09-10', studentId: null, desc: '' }
+        { id: 'F1', name: 'Kế hoạch năm học 2025-2026.pdf', type: 'pdf', size: '2.4 MB', uploadDate: '2025-09-01', desc: 'Kế hoạch chung', data: '' },
+        { id: 'F2', name: 'Danh sách lớp 3B1.xlsx', type: 'excel', size: '156 KB', uploadDate: '2025-09-05', desc: '', data: '' },
+        { id: 'F3', name: 'Ảnh hoạt động ngoại khóa.jpg', type: 'image', size: '3.1 MB', uploadDate: '2025-09-10', desc: '', data: '' }
     ];
 }
 
@@ -1471,8 +1471,12 @@ function renderFiles() {
                                 <td>${formatDate(f.uploadDate)}</td>
                                 <td>${f.desc || ''}</td>
                                 <td>
-                                    <button class="btn-icon" onclick="downloadFile('${f.id}')"><i class="fas fa-download"></i></button>
-                                    <button class="btn-icon" onclick="deleteFile('${f.id}')" style="color:#dc2626;"><i class="fas fa-trash"></i></button>
+                                    <div class="table-actions">
+                                        <button class="btn-icon" onclick="viewFile('${f.id}')" title="Xem"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-icon" onclick="downloadFile('${f.id}')" title="Tải xuống"><i class="fas fa-download"></i></button>
+                                        <button class="btn-icon" onclick="editFile('${f.id}')" title="Sửa"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon" onclick="deleteFile('${f.id}')" style="color:#dc2626;" title="Xóa"><i class="fas fa-trash"></i></button>
+                                    </div>
                                 </td>
                             </tr>
                         `).join('')}
@@ -1495,28 +1499,87 @@ function openUploadFile() {
                 return;
             }
             const file = input.files[0];
-            const newFile = {
-                id: 'F' + Date.now().toString(36),
-                name: file.name,
-                type: file.type.split('/')[0] || 'unknown',
-                size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-                uploadDate: new Date().toISOString().split('T')[0],
-                studentId: null,
-                desc: document.getElementById('fileDesc').value.trim()
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result.split(',')[1]; // Lấy phần dữ liệu base64
+                const newFile = {
+                    id: 'F' + Date.now().toString(36),
+                    name: file.name,
+                    type: file.type.split('/')[0] || 'unknown',
+                    size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                    uploadDate: new Date().toISOString().split('T')[0],
+                    desc: document.getElementById('fileDesc').value.trim(),
+                    data: base64Data // Lưu nội dung thực tế
+                };
+                APP_STATE.files.push(newFile);
+                localStorage.setItem('files', JSON.stringify(APP_STATE.files));
+                showToast('Tải file thành công!');
+                renderPage('files');
             };
-            APP_STATE.files.push(newFile);
-            localStorage.setItem('files', JSON.stringify(APP_STATE.files));
-            showToast('Tải file thành công!');
-            renderPage('files');
+            reader.readAsDataURL(file); // Đọc file dưới dạng base64
         }
     });
+}
+
+// Hàm xem file (hiển thị nội dung trong modal)
+function viewFile(id) {
+    const file = APP_STATE.files.find(f => f.id === id);
+    if (!file) return;
+    if (!file.data) {
+        showToast('File này không có dữ liệu để xem (có thể là file mẫu).', 'warning');
+        return;
+    }
+    // Xác định loại file để hiển thị phù hợp
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext);
+    const isPDF = ext === 'pdf';
+    const isText = ['txt', 'csv', 'log', 'md', 'json', 'xml'].includes(ext);
+    const isOffice = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext);
+
+    let contentHTML = '';
+    if (isImage) {
+        contentHTML = `<img src="data:image/${ext};base64,${file.data}" style="max-width:100%; max-height:500px; display:block; margin:auto;">`;
+    } else if (isPDF) {
+        // Dùng iframe để hiển thị PDF
+        contentHTML = `<iframe src="data:application/pdf;base64,${file.data}" style="width:100%; height:500px; border:none;"></iframe>`;
+    } else if (isText) {
+        // Giải mã base64 thành text
+        try {
+            const text = atob(file.data);
+            contentHTML = `<pre style="white-space:pre-wrap; max-height:400px; overflow-y:auto; background:#f5f5f5; padding:1rem; border-radius:4px;">${text}</pre>`;
+        } catch(e) {
+            contentHTML = `<p class="text-muted">Không thể hiển thị nội dung file này.</p>`;
+        }
+    } else {
+        // Các file khác: hiển thị thông tin và nút tải xuống
+        contentHTML = `
+            <div class="text-center" style="padding:2rem 0;">
+                <i class="fas fa-file" style="font-size:4rem; color:var(--primary);"></i>
+                <p style="margin-top:1rem;"><strong>${file.name}</strong></p>
+                <p class="text-muted">Không thể xem trước loại file này. Vui lòng tải xuống để mở.</p>
+                <button class="btn btn-primary" onclick="downloadFile('${file.id}')"><i class="fas fa-download"></i> Tải xuống</button>
+            </div>
+        `;
+    }
+
+    showModal('Xem trước file', contentHTML, 'Đóng', '');
 }
 
 function downloadFile(id) {
     const file = APP_STATE.files.find(f => f.id === id);
     if (!file) return;
-    showToast(`Đang tải file: ${file.name}`, 'info');
-    const blob = new Blob(['Nội dung mẫu của file ' + file.name], { type: 'text/plain' });
+    if (!file.data) {
+        showToast('File này không có dữ liệu để tải (có thể là file mẫu).', 'warning');
+        return;
+    }
+    // Chuyển base64 thành blob
+    const byteCharacters = atob(file.data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray]);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1525,6 +1588,30 @@ function downloadFile(id) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showToast(`Đang tải file: ${file.name}`, 'info');
+}
+
+function editFile(id) {
+    const file = APP_STATE.files.find(f => f.id === id);
+    if (!file) return;
+    showModal('Sửa file', `
+        <div class="form-group"><label>Tên file</label><input type="text" id="editFileName" value="${file.name}"></div>
+        <div class="form-group"><label>Mô tả</label><input type="text" id="editFileDesc" value="${file.desc || ''}"></div>
+    `, 'Cập nhật', 'Hủy').then(confirmed => {
+        if (confirmed) {
+            const newName = document.getElementById('editFileName').value.trim();
+            const newDesc = document.getElementById('editFileDesc').value.trim();
+            if (!newName) {
+                showToast('Tên file không được để trống.', 'error');
+                return;
+            }
+            file.name = newName;
+            file.desc = newDesc;
+            localStorage.setItem('files', JSON.stringify(APP_STATE.files));
+            showToast('Cập nhật file thành công!');
+            renderPage('files');
+        }
+    });
 }
 
 async function deleteFile(id) {
@@ -1725,9 +1812,8 @@ function printStudent(id) {
 }
 
 // ============================================================
-// 16. CÁC HÀM XUẤT EXCEL MỚI (theo yêu cầu)
+// 16. CÁC HÀM XUẤT EXCEL
 // ============================================================
-// Xuất danh sách học sinh của một lớp
 function exportClassList() {
     const cls = document.getElementById('exportClassSelect')?.value;
     if (!cls) {
@@ -1761,7 +1847,6 @@ function exportClassList() {
     showToast(`Xuất danh sách lớp ${cls} thành công!`);
 }
 
-// Xuất điểm của một lớp (bao gồm cả nhận xét)
 function exportScoreClass() {
     const cls = document.getElementById('exportScoreClass')?.value;
     if (!cls) {
@@ -1793,7 +1878,6 @@ function exportScoreClass() {
     showToast(`Xuất điểm lớp ${cls} thành công!`);
 }
 
-// Xuất danh sách khen thưởng
 function exportRewards() {
     if (APP_STATE.rewards.length === 0) {
         showToast('Chưa có dữ liệu khen thưởng.', 'warning');
@@ -1813,7 +1897,6 @@ function exportRewards() {
     showToast('Xuất khen thưởng thành công!');
 }
 
-// Xuất danh sách kỷ luật
 function exportDisciplines() {
     if (APP_STATE.disciplines.length === 0) {
         showToast('Chưa có dữ liệu kỷ luật.', 'warning');
@@ -1979,9 +2062,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.openAddDiscipline = openAddDiscipline;
     window.deleteDiscipline = deleteDiscipline;
     window.openUploadFile = openUploadFile;
+    window.viewFile = viewFile;
     window.downloadFile = downloadFile;
+    window.editFile = editFile;
     window.deleteFile = deleteFile;
-    // Thêm các hàm xuất mới
     window.exportClassList = exportClassList;
     window.exportScoreClass = exportScoreClass;
     window.exportRewards = exportRewards;
