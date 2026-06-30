@@ -643,25 +643,21 @@ function resizeImage(dataUrl, maxWidth = 200, maxHeight = 200, quality = 0.7) {
     });
 }
 
-// Preview avatar khi tải ảnh từ máy tính
+// Preview avatar
 function previewAvatar(input) {
     const preview = document.getElementById('sfAvatarPreview');
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = async function(e) {
             const dataUrl = e.target.result;
-            // Hiển thị ảnh gốc trước
-            preview.src = dataUrl;
-            // Resize ngầm để tối ưu dung lượng
-            resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
-                preview.src = resizedUrl;
-            }).catch(() => {});
+            const resizedUrl = await resizeImage(dataUrl, 200, 200, 0.7);
+            preview.src = resizedUrl;
         };
         reader.readAsDataURL(input.files[0]);
     }
 }
 
-// Mở camera để chụp ảnh
+// Mở camera
 function openCamera() {
     const videoHTML = `
         <div style="text-align:center;">
@@ -681,6 +677,8 @@ function openCamera() {
                 .then(stream => {
                     video.srcObject = stream;
                     window.cameraStream = stream;
+                    // Đảm bảo video phát
+                    video.play().catch(e => console.warn('Video play error:', e));
                 })
                 .catch(err => {
                     showToast('Không thể truy cập webcam: ' + err.message, 'error');
@@ -699,6 +697,11 @@ function capturePhoto() {
         showToast('Không tìm thấy camera.', 'error');
         return;
     }
+    // Đảm bảo video có dữ liệu
+    if (video.readyState < 2) {
+        showToast('Camera chưa sẵn sàng, vui lòng thử lại.', 'warning');
+        return;
+    }
     // Chụp ảnh từ video
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -709,36 +712,40 @@ function capturePhoto() {
     // Cập nhật preview avatar NGAY LẬP TỨC
     const preview = document.getElementById('sfAvatarPreview');
     if (preview) {
-        preview.src = dataUrl; // Hiển thị ảnh gốc trước
+        preview.src = dataUrl;
     }
     
     // Đóng modal camera
     closeCamera();
     showToast('Đã chụp ảnh!', 'success');
     
-    // Resize ảnh để giảm dung lượng (chạy ngầm, không ảnh hưởng trải nghiệm)
+    // Resize ảnh để giảm dung lượng (chạy ngầm)
     resizeImage(dataUrl, 200, 200, 0.7).then(resizedUrl => {
         if (preview) {
-            preview.src = resizedUrl; // Cập nhật ảnh đã nén
+            preview.src = resizedUrl;
         }
-    }).catch(() => {});
+    }).catch(err => {
+        console.warn('Resize ảnh thất bại, giữ ảnh gốc.', err);
+    });
 }
 
-// Đóng camera
 function closeCamera() {
     if (window.cameraStream) {
         window.cameraStream.getTracks().forEach(track => track.stop());
         window.cameraStream = null;
     }
     const video = document.getElementById('cameraVideo');
-    if (video) video.srcObject = null;
+    if (video) {
+        video.srcObject = null;
+        video.pause();
+    }
+    // Đóng modal camera
     const modalContainer = document.getElementById('modalContainer');
     if (modalContainer && !modalContainer.classList.contains('hidden')) {
         modalContainer.classList.add('hidden');
     }
 }
 
-// Xóa ảnh avatar
 function clearAvatar() {
     const preview = document.getElementById('sfAvatarPreview');
     preview.src = DEFAULT_AVATAR;
@@ -746,7 +753,6 @@ function clearAvatar() {
     if (input) input.value = '';
 }
 
-// Tạo HTML form thêm/sửa học sinh (có avatar)
 function getStudentFormHTML(student = null, showAvatar = true) {
     const s = student || {};
     const classes = APP_STATE.classes.map(c => c.name);
