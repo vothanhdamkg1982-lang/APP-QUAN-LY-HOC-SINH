@@ -9,7 +9,7 @@
  */
 
 // ============================================================
-// 0. AVATAR MẶC ĐỊNH (BASE64) - TRÁNH 404
+// 0. AVATAR MẶC ĐỊNH (BASE64)
 // ============================================================
 const DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlNWU3ZWIiIHJ4PSI1MCUiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjM4IiByPSIyNCIgZmlsbD0iIzhjOTU5YyIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNzUiIHI9IjI4IiBmaWxsPSIjOGM5NTljIi8+PC9zdmc+';
 
@@ -37,7 +37,7 @@ const APP_STATE = {
     darkMode: false
 };
 
-// Tạo dữ liệu mẫu cho học sinh tiểu học (khối 3,4,5)
+// Tạo dữ liệu mẫu cho học sinh (khối 3,4,5)
 function generateSampleStudents() {
     const firstNames = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Vũ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý', 'Vương'];
     const lastNames = ['Anh', 'Bình', 'Chi', 'Dũng', 'Giang', 'Hà', 'Hùng', 'Hương', 'Khoa', 'Linh', 'Mai', 'Nam', 'Phương', 'Quân', 'Sơn', 'Tâm', 'Thảo', 'Thắng', 'Thu', 'Trang', 'Tuấn', 'Vân', 'Việt', 'Xuân', 'Yến'];
@@ -47,8 +47,6 @@ function generateSampleStudents() {
         classNames.push(`${g}B1`, `${g}B2`, `${g}C`);
     }
     const statuses = ['Đang học', 'Đã chuyển', 'Đã tốt nghiệp', 'Bảo lưu'];
-    const academic = ['Giỏi', 'Khá', 'Trung bình', 'Yếu'];
-    const conduct = ['Tốt', 'Khá', 'Trung bình', 'Yếu'];
     const students = [];
 
     for (let i = 1; i <= 50; i++) {
@@ -60,9 +58,6 @@ function generateSampleStudents() {
         const birthYear = 2014 + Math.floor(Math.random() * 4);
         const birth = new Date(birthYear, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28));
         const dob = birth.toISOString().split('T')[0];
-        const avg = (Math.random() * 4 + 4).toFixed(1);
-        const acad = avg >= 8 ? 'Giỏi' : avg >= 6.5 ? 'Khá' : avg >= 5 ? 'Trung bình' : 'Yếu';
-        const cond = conduct[Math.floor(Math.random() * conduct.length)];
         const status = statuses[Math.floor(Math.random() * statuses.length)];
 
         students.push({
@@ -80,9 +75,8 @@ function generateSampleStudents() {
             fatherName: firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + lastNames[Math.floor(Math.random() * lastNames.length)],
             motherName: firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + lastNames[Math.floor(Math.random() * lastNames.length)],
             parentPhone: `09${String(10000000 + Math.floor(Math.random() * 90000000)).slice(0, 8)}`,
-            academic: acad,
-            conduct: cond,
-            avgScore: parseFloat(avg),
+            competence: '',   // trống
+            quality: '',      // trống
             enrollmentDate: new Date(2024, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28)).toISOString().split('T')[0],
             status: status,
             note: '',
@@ -101,7 +95,6 @@ function initData() {
         students = generateSampleStudents();
         localStorage.setItem('students', JSON.stringify(students));
     }
-    // Đảm bảo tất cả học sinh đều có avatar hợp lệ
     students = students.map(s => {
         if (!s.avatar || s.avatar === 'images/avatar-default.png') {
             s.avatar = DEFAULT_AVATAR;
@@ -131,27 +124,35 @@ function initData() {
     APP_STATE.classes = classes;
     updateClassCounts();
 
+    // Dữ liệu điểm: giữa kỳ nhận xét, cuối kỳ điểm số, thêm competence & quality
     let scores = JSON.parse(localStorage.getItem('scores'));
     if (!scores) {
         scores = [];
-        const danhGia = ['Tốt', 'Hoàn thành', 'Chưa hoàn thành'];
+        const gkOptions = ['', 'Hoàn thành tốt', 'Hoàn thành', 'Chưa hoàn thành'];
         APP_STATE.students.forEach(s => {
-            const gk1 = danhGia[Math.floor(Math.random() * danhGia.length)];
-            const gk2 = danhGia[Math.floor(Math.random() * danhGia.length)];
-            const ck1 = Math.floor(Math.random() * 10) + 1;
-            const ck2 = Math.floor(Math.random() * 10) + 1;
             scores.push({
                 studentId: s.id,
-                giuaKy1: gk1,
-                cuoiKy1: ck1,
-                giuaKy2: gk2,
-                cuoiKy2: ck2,
-                avg: parseFloat(((ck1 + ck2) / 2).toFixed(1))
+                giuaKy1: gkOptions[Math.floor(Math.random() * gkOptions.length)],
+                cuoiKy1: null,
+                giuaKy2: gkOptions[Math.floor(Math.random() * gkOptions.length)],
+                cuoiKy2: null,
+                competence: '',   // trống
+                quality: ''       // trống
             });
         });
         localStorage.setItem('scores', JSON.stringify(scores));
     }
     APP_STATE.scores = scores;
+
+    // Đồng bộ competence & quality từ scores vào students
+    APP_STATE.scores.forEach(sc => {
+        const student = APP_STATE.students.find(s => s.id === sc.studentId);
+        if (student) {
+            student.competence = sc.competence || '';
+            student.quality = sc.quality || '';
+        }
+    });
+    localStorage.setItem('students', JSON.stringify(APP_STATE.students));
 
     if (!localStorage.getItem('attendance')) localStorage.setItem('attendance', JSON.stringify([]));
     if (!localStorage.getItem('rewards')) {
@@ -209,14 +210,9 @@ function getStatusBadge(status) {
     return `<span class="badge ${map[status] || 'badge-info'}">${status}</span>`;
 }
 
-function getAcademicBadge(level) {
-    const map = {
-        'Giỏi': 'badge-success',
-        'Khá': 'badge-info',
-        'Trung bình': 'badge-warning',
-        'Yếu': 'badge-danger'
-    };
-    return `<span class="badge ${map[level] || 'badge-info'}">${level}</span>`;
+// Hiển thị text trực tiếp, không badge, không dấu gì
+function displayText(value) {
+    return value || ''; // nếu rỗng thì trả về chuỗi rỗng
 }
 
 function showToast(message, type = 'success', duration = 3000) {
@@ -338,10 +334,6 @@ function renderDashboard() {
     const total = students.length;
     const male = students.filter(s => s.gender === 'Nam').length;
     const female = total - male;
-    const good = students.filter(s => s.academic === 'Giỏi').length;
-    const khá = students.filter(s => s.academic === 'Khá').length;
-    const tb = students.filter(s => s.academic === 'Trung bình').length;
-    const yếu = students.filter(s => s.academic === 'Yếu').length;
     const classes = APP_STATE.classes;
 
     return `
@@ -350,14 +342,9 @@ function renderDashboard() {
             <div class="stat-card"><div class="stat-icon"><i class="fas fa-chalkboard"></i></div><div class="stat-value">${classes.length}</div><div class="stat-label">Số lớp</div></div>
             <div class="stat-card"><div class="stat-icon"><i class="fas fa-male" style="color:#2563eb;"></i></div><div class="stat-value">${male}</div><div class="stat-label">Nam</div></div>
             <div class="stat-card"><div class="stat-icon"><i class="fas fa-female" style="color:#ec4899;"></i></div><div class="stat-value">${female}</div><div class="stat-label">Nữ</div></div>
-            <div class="stat-card"><div class="stat-icon"><i class="fas fa-star" style="color:#f59e0b;"></i></div><div class="stat-value">${good}</div><div class="stat-label">Giỏi</div></div>
-            <div class="stat-card"><div class="stat-icon"><i class="fas fa-thumbs-up" style="color:#16a34a;"></i></div><div class="stat-value">${khá}</div><div class="stat-label">Khá</div></div>
-            <div class="stat-card"><div class="stat-icon"><i class="fas fa-minus" style="color:#f97316;"></i></div><div class="stat-value">${tb}</div><div class="stat-label">Trung bình</div></div>
-            <div class="stat-card"><div class="stat-icon"><i class="fas fa-exclamation-triangle" style="color:#dc2626;"></i></div><div class="stat-value">${yếu}</div><div class="stat-label">Yếu</div></div>
         </div>
         <div class="chart-grid">
             <div class="chart-box"><canvas id="chartGender"></canvas></div>
-            <div class="chart-box"><canvas id="chartAcademic"></canvas></div>
             <div class="chart-box"><canvas id="chartClass"></canvas></div>
         </div>
     `;
@@ -387,30 +374,6 @@ function initCharts() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom', labels: { font: { size: 12 } } } }
-        }
-    });
-
-    const good = students.filter(s => s.academic === 'Giỏi').length;
-    const khá = students.filter(s => s.academic === 'Khá').length;
-    const tb = students.filter(s => s.academic === 'Trung bình').length;
-    const yếu = students.filter(s => s.academic === 'Yếu').length;
-    if (chartInstances.academic) chartInstances.academic.destroy();
-    chartInstances.academic = new Chart(document.getElementById('chartAcademic'), {
-        type: 'bar',
-        data: {
-            labels: ['Giỏi', 'Khá', 'Trung bình', 'Yếu'],
-            datasets: [{
-                label: 'Số lượng',
-                data: [good, khá, tb, yếu],
-                backgroundColor: ['#16a34a', '#2563eb', '#f59e0b', '#dc2626'],
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } } }
         }
     });
 
@@ -477,7 +440,8 @@ function renderStudents() {
                         <th data-sort="dob">Ngày sinh</th>
                         <th data-sort="gender">Giới tính</th>
                         <th data-sort="class">Lớp</th>
-                        <th data-sort="academic">Học lực</th>
+                        <th data-sort="competence">Năng lực</th>
+                        <th data-sort="quality">Phẩm chất</th>
                         <th data-sort="status">Trạng thái</th>
                         <th>Thao tác</th>
                     </tr></thead>
@@ -535,7 +499,8 @@ function initStudentTable() {
             <td>${formatDate(s.dob)}</td>
             <td>${s.gender}</td>
             <td>${s.class}</td>
-            <td>${getAcademicBadge(s.academic)}</td>
+            <td>${displayText(s.competence)}</td>
+            <td>${displayText(s.quality)}</td>
             <td>${getStatusBadge(s.status)}</td>
             <td>
                 <div class="table-actions">
@@ -610,10 +575,8 @@ function toggleSelectAll() {
 }
 
 // ============================================================
-// 7. CÁC HÀM XỬ LÝ AVATAR VÀ THÊM/SỬA HỌC SINH (BỎ CAMERA)
+// 7. CÁC HÀM XỬ LÝ AVATAR VÀ THÊM/SỬA HỌC SINH
 // ============================================================
-
-// Resize ảnh
 function resizeImage(dataUrl, maxWidth = 200, maxHeight = 200, quality = 0.7) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -643,7 +606,6 @@ function resizeImage(dataUrl, maxWidth = 200, maxHeight = 200, quality = 0.7) {
     });
 }
 
-// Preview avatar (chỉ tải từ file)
 function previewAvatar(input) {
     const preview = document.getElementById('sfAvatarPreview');
     if (input.files && input.files[0]) {
@@ -657,7 +619,6 @@ function previewAvatar(input) {
     }
 }
 
-// Xóa avatar
 function clearAvatar() {
     const preview = document.getElementById('sfAvatarPreview');
     if (preview) preview.src = DEFAULT_AVATAR;
@@ -669,6 +630,10 @@ function getStudentFormHTML(student = null, showAvatar = true) {
     const s = student || {};
     const classes = APP_STATE.classes.map(c => c.name);
     const avatarSrc = (s.avatar && s.avatar.startsWith('data:image')) ? s.avatar : DEFAULT_AVATAR;
+    // Các tùy chọn cho Năng lực và Phẩm chất (3 mức)
+    const compOptions = ['', 'Tốt', 'Đạt', 'Cần cố gắng'];
+    const qualOptions = ['', 'Tốt', 'Đạt', 'Cần cố gắng'];
+
     return `
         ${showAvatar ? `
         <div style="text-align:center; margin-bottom:1rem;">
@@ -703,6 +668,16 @@ function getStudentFormHTML(student = null, showAvatar = true) {
             <div class="form-group"><label>Trạng thái</label>
                 <select id="sfStatus"><option value="Đang học" ${s.status === 'Đang học' ? 'selected' : ''}>Đang học</option><option value="Đã chuyển" ${s.status === 'Đã chuyển' ? 'selected' : ''}>Đã chuyển</option><option value="Đã tốt nghiệp" ${s.status === 'Đã tốt nghiệp' ? 'selected' : ''}>Đã tốt nghiệp</option><option value="Bảo lưu" ${s.status === 'Bảo lưu' ? 'selected' : ''}>Bảo lưu</option></select>
             </div>
+            <div class="form-group"><label>Năng lực</label>
+                <select id="sfCompetence">
+                    ${compOptions.map(opt => `<option value="${opt}" ${s.competence === opt ? 'selected' : ''}>${opt || ''}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group"><label>Phẩm chất</label>
+                <select id="sfQuality">
+                    ${qualOptions.map(opt => `<option value="${opt}" ${s.quality === opt ? 'selected' : ''}>${opt || ''}</option>`).join('')}
+                </select>
+            </div>
             <div class="form-group"><label>Ghi chú</label><textarea id="sfNote">${s.note || ''}</textarea></div>
         </div>
     `;
@@ -724,9 +699,8 @@ function getStudentFormData() {
         parentPhone: document.getElementById('sfParentPhone').value.trim(),
         status: document.getElementById('sfStatus').value,
         note: document.getElementById('sfNote').value.trim(),
-        academic: 'Trung bình',
-        conduct: 'Tốt',
-        avgScore: 0,
+        competence: document.getElementById('sfCompetence').value,
+        quality: document.getElementById('sfQuality').value,
         enrollmentDate: new Date().toISOString().split('T')[0]
     };
 }
@@ -747,7 +721,18 @@ function openAddStudent() {
                 data.avatar = DEFAULT_AVATAR;
             }
             APP_STATE.students.push(data);
+            // Thêm record điểm cho học sinh mới
+            APP_STATE.scores.push({
+                studentId: data.id,
+                giuaKy1: '',
+                cuoiKy1: null,
+                giuaKy2: '',
+                cuoiKy2: null,
+                competence: data.competence,
+                quality: data.quality
+            });
             localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+            localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
             updateClassCounts();
             showToast('Thêm học sinh thành công!');
             renderPage('students');
@@ -770,6 +755,13 @@ function editStudent(id) {
                 student.avatar = preview.src;
             }
             Object.assign(student, data);
+            // Cập nhật competence & quality trong bảng điểm
+            const score = APP_STATE.scores.find(sc => sc.studentId === id);
+            if (score) {
+                score.competence = data.competence;
+                score.quality = data.quality;
+                localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
+            }
             localStorage.setItem('students', JSON.stringify(APP_STATE.students));
             updateClassCounts();
             showToast('Cập nhật thành công!');
@@ -788,7 +780,7 @@ function viewStudent(id) {
             <div class="profile-info">
                 <h2>${s.fullName}</h2>
                 <p><strong>Mã HS:</strong> ${s.id} | <strong>Lớp:</strong> ${s.class} | <strong>Khối:</strong> ${s.grade}</p>
-                <p>${getStatusBadge(s.status)} ${getAcademicBadge(s.academic)}</p>
+                <p>${getStatusBadge(s.status)}</p>
                 <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
                     <button class="btn btn-primary btn-sm" onclick="downloadAvatar('${s.id}')"><i class="fas fa-download"></i> Tải ảnh</button>
                 </div>
@@ -800,8 +792,8 @@ function viewStudent(id) {
             <div><label>Địa chỉ</label><p><strong>${s.address || ''}</strong></p></div>
             <div><label>SĐT</label><p><strong>${s.phone || ''}</strong></p></div>
             <div><label>Email</label><p><strong>${s.email || ''}</strong></p></div>
-            <div><label>Hạnh kiểm</label><p><strong>${s.conduct || ''}</strong></p></div>
-            <div><label>Điểm TB</label><p><strong>${s.avgScore || 0}</strong></p></div>
+            <div><label>Năng lực</label><p><strong>${displayText(s.competence)}</strong></p></div>
+            <div><label>Phẩm chất</label><p><strong>${displayText(s.quality)}</strong></p></div>
             <div><label>Ngày nhập học</label><p><strong>${formatDate(s.enrollmentDate)}</strong></p></div>
             <div><label>Tên cha</label><p><strong>${s.fatherName || ''}</strong></p></div>
             <div><label>Tên mẹ</label><p><strong>${s.motherName || ''}</strong></p></div>
@@ -837,7 +829,9 @@ async function deleteStudent(id) {
     if (confirmed) {
         APP_STATE.students = APP_STATE.students.filter(s => s.id !== id);
         APP_STATE.selectedStudents = APP_STATE.selectedStudents.filter(sid => sid !== id);
+        APP_STATE.scores = APP_STATE.scores.filter(sc => sc.studentId !== id);
         localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+        localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
         updateClassCounts();
         showToast('Đã xóa học sinh!', 'warning');
         renderPage('students');
@@ -852,8 +846,10 @@ async function deleteSelectedStudents() {
     const confirmed = await showModal('Xóa nhiều học sinh', `Bạn có chắc muốn xóa <strong>${APP_STATE.selectedStudents.length}</strong> học sinh?`, 'Xóa tất cả', 'Hủy');
     if (confirmed) {
         APP_STATE.students = APP_STATE.students.filter(s => !APP_STATE.selectedStudents.includes(s.id));
+        APP_STATE.scores = APP_STATE.scores.filter(sc => !APP_STATE.selectedStudents.includes(sc.studentId));
         APP_STATE.selectedStudents = [];
         localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+        localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
         updateClassCounts();
         showToast('Đã xóa các học sinh đã chọn!', 'warning');
         renderPage('students');
@@ -874,9 +870,8 @@ function exportExcel() {
         'Địa chỉ': s.address,
         'SĐT': s.phone,
         'Email': s.email,
-        'Học lực': s.academic,
-        'Hạnh kiểm': s.conduct,
-        'Điểm TB': s.avgScore,
+        'Năng lực': s.competence || '',
+        'Phẩm chất': s.quality || '',
         'Trạng thái': s.status
     }));
     const wb = XLSX.utils.book_new();
@@ -897,9 +892,8 @@ function downloadSampleExcel() {
         'Địa chỉ': '123 Đường Lê Lợi, Khu phố 1, Đặc khu Kiên Hải',
         'SĐT': '0912345678',
         'Email': 'vana@gmail.com',
-        'Học lực': 'Giỏi',
-        'Hạnh kiểm': 'Tốt',
-        'Điểm TB': 8.5,
+        'Năng lực': '',
+        'Phẩm chất': '',
         'Trạng thái': 'Đang học'
     }, {
         'Mã HS': 'HS10002',
@@ -911,9 +905,8 @@ function downloadSampleExcel() {
         'Địa chỉ': '456 Đường Nguyễn Huệ, Khu phố 2, Đặc khu Kiên Hải',
         'SĐT': '0987654321',
         'Email': 'thib@gmail.com',
-        'Học lực': 'Khá',
-        'Hạnh kiểm': 'Tốt',
-        'Điểm TB': 7.2,
+        'Năng lực': '',
+        'Phẩm chất': '',
         'Trạng thái': 'Đang học'
     }];
     const wb = XLSX.utils.book_new();
@@ -952,6 +945,8 @@ function importExcel(event) {
                 const parentPhone = row['SĐT phụ huynh'] || '';
                 const status = row['Trạng thái'] || 'Đang học';
                 const note = row['Ghi chú'] || '';
+                const competence = row['Năng lực'] || '';
+                const quality = row['Phẩm chất'] || '';
 
                 if (!fullName || !dob || !gender || !cls) {
                     errors++;
@@ -973,9 +968,8 @@ function importExcel(event) {
                     parentPhone: parentPhone.trim(),
                     status: status.trim(),
                     note: note.trim(),
-                    academic: 'Trung bình',
-                    conduct: 'Tốt',
-                    avgScore: 0,
+                    competence: competence.trim(),
+                    quality: quality.trim(),
                     enrollmentDate: new Date().toISOString().split('T')[0],
                     avatar: DEFAULT_AVATAR
                 };
@@ -999,7 +993,20 @@ function importExcel(event) {
 
             if (newStudents.length > 0) {
                 APP_STATE.students.push(...newStudents);
+                // Thêm record điểm cho học sinh mới
+                newStudents.forEach(st => {
+                    APP_STATE.scores.push({
+                        studentId: st.id,
+                        giuaKy1: '',
+                        cuoiKy1: null,
+                        giuaKy2: '',
+                        cuoiKy2: null,
+                        competence: st.competence,
+                        quality: st.quality
+                    });
+                });
                 localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+                localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
                 localStorage.setItem('classes', JSON.stringify(APP_STATE.classes));
                 updateClassCounts();
                 showToast(`Import thành công ${imported} học sinh. ${errors > 0 ? 'Có ' + errors + ' dòng bị lỗi (thiếu thông tin).' : ''}`);
@@ -1016,7 +1023,7 @@ function importExcel(event) {
 }
 
 // ============================================================
-// 9. QUẢN LÝ LỚP
+// 9. QUẢN LÝ LỚP (giữ nguyên)
 // ============================================================
 function renderClasses() {
     const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
@@ -1128,7 +1135,7 @@ async function deleteClass(id) {
 }
 
 // ============================================================
-// 10. QUẢN LÝ ĐIỂM
+// 10. QUẢN LÝ ĐIỂM (THÊM CỘT NĂNG LỰC & PHẨM CHẤT)
 // ============================================================
 function renderScores() {
     const classOptions = APP_STATE.classes.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
@@ -1144,7 +1151,7 @@ function renderScores() {
                     <button class="btn btn-success btn-sm" onclick="exportScoreClass()"><i class="fas fa-file-excel"></i> Xuất điểm lớp</button>
                 </div>
             </div>
-            <p class="text-muted mb-2">Nhập điểm và nhận xét cho học sinh.</p>
+            <p class="text-muted mb-2">Nhập điểm (nhận xét) cho học sinh theo Thông tư 27.</p>
             <div class="search-bar">
                 <input type="text" id="scoreSearch" placeholder="Tìm học sinh..." oninput="initScoreTable()">
                 <select id="scoreClass" onchange="initScoreTable()"><option value="">Tất cả lớp</option>${classOptions}</select>
@@ -1155,7 +1162,9 @@ function renderScores() {
                         <th>STT</th><th>Mã HS</th><th>Họ tên</th><th>Lớp</th>
                         <th>Giữa kỳ 1</th><th>Cuối kỳ 1</th>
                         <th>Giữa kỳ 2</th><th>Cuối kỳ 2</th>
-                        <th>ĐTB</th><th>Thao tác</th>
+                        <th>Năng lực</th>
+                        <th>Phẩm chất</th>
+                        <th>Thao tác</th>
                     </tr></thead>
                     <tbody id="scoreTableBody"></tbody>
                 </table>
@@ -1172,33 +1181,48 @@ function initScoreTable() {
     if (kw) list = list.filter(s => s.fullName.toLowerCase().includes(kw) || s.id.toLowerCase().includes(kw));
     const cls = document.getElementById('scoreClass')?.value || '';
     if (cls) list = list.filter(s => s.class === cls);
-    const danhGiaOptions = ['Tốt', 'Hoàn thành', 'Chưa hoàn thành'];
+    // Các mức nhận xét cho giữa kỳ
+    const gkOptions = ['', 'Hoàn thành tốt', 'Hoàn thành', 'Chưa hoàn thành'];
+    const compOptions = ['', 'Tốt', 'Đạt', 'Cần cố gắng'];
     tbody.innerHTML = list.map((s, idx) => {
-        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: 'Tốt', cuoiKy1: 0, giuaKy2: 'Tốt', cuoiKy2: 0, avg: 0 };
-        const gk1Options = danhGiaOptions.map(opt => `<option value="${opt}" ${opt === sc.giuaKy1 ? 'selected' : ''}>${opt}</option>`).join('');
-        const gk2Options = danhGiaOptions.map(opt => `<option value="${opt}" ${opt === sc.giuaKy2 ? 'selected' : ''}>${opt}</option>`).join('');
+        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: '', cuoiKy1: null, giuaKy2: '', cuoiKy2: null, competence: '', quality: '' };
+        const gk1Opts = gkOptions.map(opt => `<option value="${opt}" ${opt === sc.giuaKy1 ? 'selected' : ''}>${opt || ''}</option>`).join('');
+        const gk2Opts = gkOptions.map(opt => `<option value="${opt}" ${opt === sc.giuaKy2 ? 'selected' : ''}>${opt || ''}</option>`).join('');
+        const ck1Val = (sc.cuoiKy1 !== null && sc.cuoiKy1 !== undefined) ? sc.cuoiKy1 : '';
+        const ck2Val = (sc.cuoiKy2 !== null && sc.cuoiKy2 !== undefined) ? sc.cuoiKy2 : '';
+        const compOpts = compOptions.map(opt => `<option value="${opt}" ${opt === sc.competence ? 'selected' : ''}>${opt || ''}</option>`).join('');
+        const qualOpts = compOptions.map(opt => `<option value="${opt}" ${opt === sc.quality ? 'selected' : ''}>${opt || ''}</option>`).join('');
         return `<tr>
             <td>${idx + 1}</td>
             <td>${s.id}</td>
             <td>${s.fullName}</td>
             <td>${s.class}</td>
             <td>
-                <select style="width:100px;" onchange="updateScore('${s.id}','giuaKy1',this.value)">
-                    ${gk1Options}
+                <select style="width:140px;" onchange="updateScore('${s.id}','giuaKy1',this.value)">
+                    ${gk1Opts}
                 </select>
             </td>
             <td>
-                <input type="number" min="0" max="10" value="${sc.cuoiKy1}" style="width:60px;" onchange="updateScore('${s.id}','cuoiKy1',this.value)">
+                <input type="number" min="0" max="10" step="0.5" value="${ck1Val}" style="width:70px;" onchange="updateScore('${s.id}','cuoiKy1',this.value)">
             </td>
             <td>
-                <select style="width:100px;" onchange="updateScore('${s.id}','giuaKy2',this.value)">
-                    ${gk2Options}
+                <select style="width:140px;" onchange="updateScore('${s.id}','giuaKy2',this.value)">
+                    ${gk2Opts}
                 </select>
             </td>
             <td>
-                <input type="number" min="0" max="10" value="${sc.cuoiKy2}" style="width:60px;" onchange="updateScore('${s.id}','cuoiKy2',this.value)">
+                <input type="number" min="0" max="10" step="0.5" value="${ck2Val}" style="width:70px;" onchange="updateScore('${s.id}','cuoiKy2',this.value)">
             </td>
-            <td><strong>${sc.avg.toFixed(1)}</strong></td>
+            <td>
+                <select style="width:120px;" onchange="updateScore('${s.id}','competence',this.value)">
+                    ${compOpts}
+                </select>
+            </td>
+            <td>
+                <select style="width:120px;" onchange="updateScore('${s.id}','quality',this.value)">
+                    ${qualOpts}
+                </select>
+            </td>
             <td><button class="btn btn-primary btn-sm" onclick="saveScore('${s.id}')"><i class="fas fa-save"></i></button></td>
         </tr>`;
     }).join('');
@@ -1207,23 +1231,24 @@ function initScoreTable() {
 function updateScore(studentId, field, value) {
     let sc = APP_STATE.scores.find(s => s.studentId === studentId);
     if (!sc) {
-        sc = { studentId, giuaKy1: 'Tốt', cuoiKy1: 0, giuaKy2: 'Tốt', cuoiKy2: 0, avg: 0 };
+        sc = { studentId, giuaKy1: '', cuoiKy1: null, giuaKy2: '', cuoiKy2: null, competence: '', quality: '' };
         APP_STATE.scores.push(sc);
     }
-    if (field === 'giuaKy1' || field === 'giuaKy2') {
+    if (field === 'giuaKy1' || field === 'giuaKy2' || field === 'competence' || field === 'quality') {
         sc[field] = value;
     } else {
-        sc[field] = parseFloat(value) || 0;
+        const num = parseFloat(value);
+        sc[field] = isNaN(num) ? null : num;
     }
-    const ck1 = sc.cuoiKy1 || 0;
-    const ck2 = sc.cuoiKy2 || 0;
-    sc.avg = parseFloat(((ck1 + ck2) / 2).toFixed(1));
-    const student = APP_STATE.students.find(s => s.id === studentId);
-    if (student) {
-        student.avgScore = sc.avg;
-        student.academic = sc.avg >= 8 ? 'Giỏi' : sc.avg >= 6.5 ? 'Khá' : sc.avg >= 5 ? 'Trung bình' : 'Yếu';
-        localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+    // Nếu cập nhật competence hoặc quality, đồng bộ vào student
+    if (field === 'competence' || field === 'quality') {
+        const student = APP_STATE.students.find(s => s.id === studentId);
+        if (student) {
+            student[field] = value;
+            localStorage.setItem('students', JSON.stringify(APP_STATE.students));
+        }
     }
+    localStorage.setItem('scores', JSON.stringify(APP_STATE.scores));
 }
 
 function saveScore(studentId) {
@@ -1233,7 +1258,7 @@ function saveScore(studentId) {
 }
 
 // ============================================================
-// 11. ĐIỂM DANH
+// 11. ĐIỂM DANH (giữ nguyên)
 // ============================================================
 function renderAttendance() {
     const today = new Date().toISOString().split('T')[0];
@@ -1384,7 +1409,7 @@ function exportAttendanceExcel() {
 }
 
 // ============================================================
-// 12. QUẢN LÝ KHEN THƯỞNG
+// 12. QUẢN LÝ KHEN THƯỞNG (giữ nguyên)
 // ============================================================
 function generateSampleRewards() {
     return [
@@ -1467,7 +1492,7 @@ async function deleteReward(id) {
 }
 
 // ============================================================
-// 13. QUẢN LÝ KỶ LUẬT
+// 13. QUẢN LÝ KỶ LUẬT (giữ nguyên)
 // ============================================================
 function generateSampleDisciplines() {
     return [
@@ -1550,7 +1575,7 @@ async function deleteDiscipline(id) {
 }
 
 // ============================================================
-// 14. QUẢN LÝ FILE
+// 14. QUẢN LÝ FILE (giữ nguyên)
 // ============================================================
 function generateSampleFiles() {
     return [
@@ -1739,6 +1764,7 @@ function renderStatistics() {
             <div class="chart-grid">
                 <div class="chart-box"><canvas id="statGradeChart"></canvas></div>
                 <div class="chart-box"><canvas id="statGenderChart"></canvas></div>
+                <div class="chart-box"><canvas id="statCompetenceChart"></canvas></div>
             </div>
             <div class="stats-grid mt-2">
                 <div class="stat-card"><div class="stat-label">Tổng học sinh</div><div class="stat-value">${APP_STATE.students.length}</div></div>
@@ -1774,6 +1800,32 @@ function initStatCharts() {
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
+
+    const compMap = {};
+    APP_STATE.students.forEach(s => {
+        const val = s.competence || 'Chưa xếp';
+        compMap[val] = (compMap[val] || 0) + 1;
+    });
+    const compLabels = Object.keys(compMap);
+    const compValues = Object.values(compMap);
+    const colors = ['#16a34a', '#2563eb', '#f59e0b', '#dc2626', '#94a3b8'];
+    if (chartInstances.statCompetence) chartInstances.statCompetence.destroy();
+    chartInstances.statCompetence = new Chart(document.getElementById('statCompetenceChart'), {
+        type: 'pie',
+        data: {
+            labels: compLabels,
+            datasets: [{
+                data: compValues,
+                backgroundColor: colors.slice(0, compLabels.length),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
 }
 
 // ============================================================
@@ -1785,7 +1837,7 @@ function renderSearch() {
             <h3 class="card-title"><i class="fas fa-search"></i> Tìm kiếm nâng cao</h3>
             <div class="search-bar">
                 <input type="text" id="globalSearch" placeholder="Nhập từ khóa..." oninput="globalSearch()">
-                <select id="searchField" onchange="globalSearch()"><option value="all">Tất cả</option><option value="id">Mã HS</option><option value="fullName">Họ tên</option><option value="class">Lớp</option><option value="grade">Khối</option></select>
+                <select id="searchField" onchange="globalSearch()"><option value="all">Tất cả</option><option value="id">Mã HS</option><option value="fullName">Họ tên</option><option value="class">Lớp</option><option value="grade">Khối</option><option value="competence">Năng lực</option><option value="quality">Phẩm chất</option></select>
                 <button class="btn btn-primary btn-sm" onclick="globalSearch()"><i class="fas fa-search"></i> Tìm</button>
             </div>
             <div id="searchResults"></div>
@@ -1801,7 +1853,7 @@ function globalSearch() {
     if (!kw) { container.innerHTML = '<p class="text-muted">Nhập từ khóa để tìm kiếm.</p>'; return; }
     let results = APP_STATE.students.filter(s => {
         if (field === 'all') {
-            return s.fullName.toLowerCase().includes(kw) || s.id.toLowerCase().includes(kw) || s.class.toLowerCase().includes(kw) || s.grade.includes(kw);
+            return s.fullName.toLowerCase().includes(kw) || s.id.toLowerCase().includes(kw) || s.class.toLowerCase().includes(kw) || s.grade.includes(kw) || (s.competence && s.competence.toLowerCase().includes(kw)) || (s.quality && s.quality.toLowerCase().includes(kw));
         }
         return String(s[field] || '').toLowerCase().includes(kw);
     });
@@ -1812,14 +1864,15 @@ function globalSearch() {
     container.innerHTML = `
         <div class="table-wrapper">
             <table>
-                <thead><tr><th>STT</th><th>Mã HS</th><th>Họ tên</th><th>Lớp</th><th>Học lực</th><th>Trạng thái</th></tr></thead>
+                <thead><tr><th>STT</th><th>Mã HS</th><th>Họ tên</th><th>Lớp</th><th>Năng lực</th><th>Phẩm chất</th><th>Trạng thái</th></tr></thead>
                 <tbody>${results.map((s, i) => `
                     <tr>
                         <td>${i + 1}</td>
                         <td>${s.id}</td>
                         <td>${s.fullName}</td>
                         <td>${s.class}</td>
-                        <td>${getAcademicBadge(s.academic)}</td>
+                        <td>${displayText(s.competence)}</td>
+                        <td>${displayText(s.quality)}</td>
                         <td>${getStatusBadge(s.status)}</td>
                     </tr>
                 `).join('')}</tbody>
@@ -1980,7 +2033,6 @@ function printStudent(id) {
                         <div class="sub"><strong>Mã HS:</strong> ${s.id} &nbsp;|&nbsp; <strong>Lớp:</strong> ${s.class} &nbsp;|&nbsp; <strong>Khối:</strong> ${s.grade}</div>
                         <div class="sub" style="margin-top:0.25rem;">
                             <span style="display:inline-block;background:#dbeafe;padding:0.1rem 0.6rem;border-radius:12px;font-size:0.8rem;">${s.status}</span>
-                            <span style="display:inline-block;background:#fef3c7;padding:0.1rem 0.6rem;border-radius:12px;font-size:0.8rem;margin-left:0.5rem;">${s.academic}</span>
                         </div>
                     </div>
                 </div>
@@ -1991,9 +2043,8 @@ function printStudent(id) {
                     <tr><td class="label">Địa chỉ</td><td class="value">${s.address || ''}</td></tr>
                     <tr><td class="label">Số điện thoại</td><td class="value">${s.phone || ''}</td></tr>
                     <tr><td class="label">Email</td><td class="value">${s.email || ''}</td></tr>
-                    <tr><td class="label">Học lực</td><td class="value">${s.academic}</td></tr>
-                    <tr><td class="label">Hạnh kiểm</td><td class="value">${s.conduct || ''}</td></tr>
-                    <tr><td class="label">Điểm trung bình</td><td class="value">${s.avgScore || 0}</td></tr>
+                    <tr><td class="label">Năng lực</td><td class="value">${displayText(s.competence)}</td></tr>
+                    <tr><td class="label">Phẩm chất</td><td class="value">${displayText(s.quality)}</td></tr>
                     <tr><td class="label">Trạng thái</td><td class="value">${s.status}</td></tr>
                     <tr><td class="label">Ngày nhập học</td><td class="value">${formatDate(s.enrollmentDate)}</td></tr>
                     <tr><td class="label">Tên cha</td><td class="value">${s.fatherName || ''}</td></tr>
@@ -2041,9 +2092,8 @@ function exportClassList() {
         'Địa chỉ': s.address,
         'SĐT': s.phone,
         'Email': s.email,
-        'Học lực': s.academic,
-        'Hạnh kiểm': s.conduct,
-        'Điểm TB': s.avgScore,
+        'Năng lực': s.competence || '',
+        'Phẩm chất': s.quality || '',
         'Trạng thái': s.status
     }));
     const wb = XLSX.utils.book_new();
@@ -2065,16 +2115,17 @@ function exportScoreClass() {
         return;
     }
     const data = students.map(s => {
-        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: 'Tốt', cuoiKy1: 0, giuaKy2: 'Tốt', cuoiKy2: 0, avg: 0 };
+        const sc = APP_STATE.scores.find(sc => sc.studentId === s.id) || { giuaKy1: '', cuoiKy1: null, giuaKy2: '', cuoiKy2: null, competence: '', quality: '' };
         return {
             'Mã HS': s.id,
             'Họ tên': s.fullName,
             'Lớp': s.class,
             'Giữa kỳ 1': sc.giuaKy1,
-            'Cuối kỳ 1': sc.cuoiKy1,
+            'Cuối kỳ 1': sc.cuoiKy1 !== null ? sc.cuoiKy1 : '',
             'Giữa kỳ 2': sc.giuaKy2,
-            'Cuối kỳ 2': sc.cuoiKy2,
-            'Điểm trung bình': sc.avg
+            'Cuối kỳ 2': sc.cuoiKy2 !== null ? sc.cuoiKy2 : '',
+            'Năng lực': sc.competence || '',
+            'Phẩm chất': sc.quality || ''
         };
     });
     const wb = XLSX.utils.book_new();
